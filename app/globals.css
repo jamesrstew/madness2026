@@ -1,0 +1,46 @@
+@import "tailwindcss";
+
+@theme {
+  --color-navy: #1a1a2e;
+  --color-navy-light: #25254a;
+  --color-navy-dark: #121225;
+  --color-tournament-orange: #ff6b35;
+  --color-tournament-orange-light: #ff8a5c;
+  --color-court-green: #10b981;
+  --color-danger-red: #ef4444;
+  --color-gold: #f59e0b;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Code", "Source Code Pro", monospace;
+}
+
+body {
+  background-color: var(--color-navy-dark);
+  color: white;
+  font-family: var(--font-sans);
+}
+
+/* Basketball court texture overlay */
+.court-bg {
+  background-image:
+    radial-gradient(ellipse at center, rgba(255, 107, 53, 0.03) 0%, transparent 70%),
+    linear-gradient(180deg, var(--color-navy-dark) 0%, var(--color-navy) 100%);
+}
+
+/* Stat bar animation */
+@keyframes fill-bar {
+  from { width: 0%; }
+}
+
+.animate-fill {
+  animation: fill-bar 0.8s ease-out forwards;
+}
+
+/* Number counter animation */
+@keyframes count-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-count {
+  animation: count-up 0.5s ease-out forwards;
+}
