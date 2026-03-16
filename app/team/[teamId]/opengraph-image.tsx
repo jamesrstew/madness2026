@@ -1,5 +1,6 @@
 import { ImageResponse } from 'next/og';
 import { findTeamById, getTeamStats, ensureHash } from '@/lib/og-utils';
+import { loadOgFonts } from '@/lib/og-fonts';
 
 export const alt = 'Team Profile — Golden Bracket';
 export const size = { width: 1200, height: 630 };
@@ -18,6 +19,8 @@ export default async function Image({ params }: { params: Promise<{ teamId: stri
   const { teamId } = await params;
   const team = await findTeamById(Number(teamId));
 
+  const fonts = await loadOgFonts();
+
   if (!team) {
     return new ImageResponse(
       (
@@ -31,13 +34,13 @@ export default async function Image({ params }: { params: Promise<{ teamId: stri
             background: '#FAFAF7',
             color: '#1A1A1A',
             fontSize: 40,
-            fontFamily: 'Georgia, serif',
+            fontFamily: 'Playfair Display',
           }}
         >
           Team Not Found
         </div>
       ),
-      { ...size },
+      { ...size, fonts },
     );
   }
 
@@ -52,9 +55,10 @@ export default async function Image({ params }: { params: Promise<{ teamId: stri
           display: 'flex',
           width: '100%',
           height: '100%',
-          fontFamily: 'Georgia, serif',
+          fontFamily: 'Source Serif 4',
           background: `linear-gradient(135deg, ${color} 0%, ${bg} 60%, #1A1A1A 100%)`,
           padding: '50px 60px',
+          boxSizing: 'border-box',
         }}
       >
         {/* Left: Logo + Name */}
@@ -67,18 +71,32 @@ export default async function Image({ params }: { params: Promise<{ teamId: stri
             width: '40%',
           }}
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={team.logo}
-            width={160}
-            height={160}
-            style={{ borderRadius: '50%', background: 'rgba(255,255,255,0.95)' }}
-          />
+          {/* Logo in white square with padding — no circle clip */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: 180,
+              height: 180,
+              background: 'rgba(255,255,255,0.95)',
+              padding: 18,
+            }}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={team.logo}
+              width={144}
+              height={144}
+              style={{ objectFit: 'contain' }}
+            />
+          </div>
           <div
             style={{
               display: 'flex',
               fontSize: 44,
               fontWeight: 700,
+              fontFamily: 'Playfair Display',
               color: '#ffffff',
               marginTop: 20,
               textAlign: 'center',
@@ -93,6 +111,7 @@ export default async function Image({ params }: { params: Promise<{ teamId: stri
               color: 'rgba(255,255,255,0.65)',
               marginTop: 8,
               fontStyle: 'italic',
+              fontFamily: 'Playfair Display',
             }}
           >
             {team.name}
@@ -150,10 +169,10 @@ export default async function Image({ params }: { params: Promise<{ teamId: stri
 
           {/* Record */}
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 10, marginTop: 24 }}>
-            <div style={{ display: 'flex', fontSize: 56, fontWeight: 700, color: '#ffffff', fontFamily: 'monospace' }}>
+            <div style={{ display: 'flex', fontSize: 56, fontWeight: 700, fontFamily: 'Playfair Display', color: '#ffffff' }}>
               {team.record.wins}-{team.record.losses}
             </div>
-            <div style={{ display: 'flex', fontSize: 20, color: 'rgba(255,255,255,0.45)', fontStyle: 'italic' }}>
+            <div style={{ display: 'flex', fontSize: 20, color: 'rgba(255,255,255,0.45)', fontStyle: 'italic', fontFamily: 'Playfair Display' }}>
               Record
             </div>
           </div>
@@ -177,10 +196,10 @@ export default async function Image({ params }: { params: Promise<{ teamId: stri
                     border: '1px solid rgba(139,105,20,0.2)',
                   }}
                 >
-                  <div style={{ display: 'flex', fontSize: 28, fontWeight: 700, color: '#ffffff', fontFamily: 'monospace' }}>
+                  <div style={{ display: 'flex', fontSize: 28, fontWeight: 700, fontFamily: 'Playfair Display', color: '#ffffff' }}>
                     {stat.value}
                   </div>
-                  <div style={{ display: 'flex', fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 2, textTransform: 'uppercase', letterSpacing: '1px' }}>
+                  <div style={{ display: 'flex', fontSize: 12, color: 'rgba(255,255,255,0.4)', marginTop: 2, textTransform: 'uppercase', letterSpacing: '1px', fontFamily: 'Source Serif 4' }}>
                     {stat.label}
                   </div>
                 </div>
@@ -190,13 +209,13 @@ export default async function Image({ params }: { params: Promise<{ teamId: stri
 
           {/* Bottom watermark */}
           <div style={{ display: 'flex', marginTop: 32 }}>
-            <div style={{ display: 'flex', fontSize: 13, color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase', letterSpacing: '2px' }}>
+            <div style={{ display: 'flex', fontSize: 13, color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase', letterSpacing: '2px', fontFamily: 'Source Serif 4' }}>
               Golden Bracket
             </div>
           </div>
         </div>
       </div>
     ),
-    { ...size },
+    { ...size, fonts },
   );
 }

@@ -15,7 +15,7 @@ export default function Header() {
             Bracket
           </Link>
           <Link href="/methodology" className="text-ink-muted hover:text-old-gold transition-colors">
-            Methodology
+            How it works
           </Link>
         </div>
       </nav>

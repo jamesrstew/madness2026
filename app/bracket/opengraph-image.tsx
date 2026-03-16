@@ -1,10 +1,13 @@
 import { ImageResponse } from 'next/og';
+import { loadOgFonts } from '@/lib/og-fonts';
 
 export const alt = 'Build Your Bracket — Golden Bracket';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 
 export default async function Image() {
+  const fonts = await loadOgFonts();
+
   return new ImageResponse(
     (
       <div
@@ -16,7 +19,7 @@ export default async function Image() {
           width: '100%',
           height: '100%',
           background: 'linear-gradient(145deg, #FAFAF7 0%, #F0EFE9 50%, #E5E4DE 100%)',
-          fontFamily: 'Georgia, serif',
+          fontFamily: 'Source Serif 4',
           padding: 60,
         }}
       >
@@ -55,6 +58,7 @@ export default async function Image() {
             display: 'flex',
             fontSize: 64,
             fontWeight: 700,
+            fontFamily: 'Playfair Display',
             color: '#1A1A1A',
           }}
         >
@@ -68,6 +72,7 @@ export default async function Image() {
             color: '#6B6B6B',
             marginTop: 16,
             fontStyle: 'italic',
+            fontFamily: 'Playfair Display',
           }}
         >
           68 Teams &bull; 4 Regions &bull; Algorithm-Powered Picks
@@ -85,6 +90,7 @@ export default async function Image() {
             color: '#8B6914',
             fontSize: 22,
             fontWeight: 600,
+            fontFamily: 'Source Serif 4',
           }}
         >
           Start Picking
@@ -100,12 +106,13 @@ export default async function Image() {
             opacity: 0.5,
             textTransform: 'uppercase',
             letterSpacing: '2px',
+            fontFamily: 'Source Serif 4',
           }}
         >
           Golden Bracket
         </div>
       </div>
     ),
-    { ...size },
+    { ...size, fonts },
   );
 }

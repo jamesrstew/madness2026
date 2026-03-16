@@ -1,10 +1,13 @@
 import { ImageResponse } from 'next/og';
+import { loadOgFonts } from '@/lib/og-fonts';
 
 export const alt = 'Golden Bracket — Your Best Shot at a Perfect Bracket';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 
 export default async function Image() {
+  const fonts = await loadOgFonts();
+
   return new ImageResponse(
     (
       <div
@@ -16,7 +19,7 @@ export default async function Image() {
           width: '100%',
           height: '100%',
           background: 'linear-gradient(145deg, #FAFAF7 0%, #F0EFE9 50%, #E5E4DE 100%)',
-          fontFamily: 'Georgia, serif',
+          fontFamily: 'Source Serif 4',
           padding: 60,
         }}
       >
@@ -25,6 +28,7 @@ export default async function Image() {
             display: 'flex',
             fontSize: 72,
             fontWeight: 700,
+            fontFamily: 'Playfair Display',
             letterSpacing: '-1px',
             lineHeight: 1.1,
             color: '#1A1A1A',
@@ -41,6 +45,7 @@ export default async function Image() {
             color: '#6B6B6B',
             marginTop: 16,
             fontStyle: 'italic',
+            fontFamily: 'Playfair Display',
           }}
         >
           Your Best Shot at a Perfect Bracket
@@ -69,10 +74,10 @@ export default async function Image() {
                 background: 'rgba(139,105,20,0.06)',
               }}
             >
-              <div style={{ fontSize: 32, fontWeight: 700, color: '#8B6914', fontFamily: 'monospace' }}>
+              <div style={{ fontSize: 32, fontWeight: 600, color: '#8B6914', fontFamily: 'Source Serif 4' }}>
                 {stat.value}
               </div>
-              <div style={{ fontSize: 14, color: '#6B6B6B', marginTop: 4, textTransform: 'uppercase', letterSpacing: '2px' }}>
+              <div style={{ fontSize: 14, color: '#6B6B6B', marginTop: 4, textTransform: 'uppercase', letterSpacing: '2px', fontFamily: 'Source Serif 4' }}>
                 {stat.label}
               </div>
             </div>
@@ -80,6 +85,6 @@ export default async function Image() {
         </div>
       </div>
     ),
-    { ...size },
+    { ...size, fonts },
   );
 }
