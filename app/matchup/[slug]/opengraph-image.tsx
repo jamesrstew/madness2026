@@ -2,7 +2,7 @@ import { ImageResponse } from 'next/og';
 import { findTeamsBySlug, quickWinProb, getTeamStats } from '@/lib/og-utils';
 import { resolveTeamColors } from '@/lib/color-utils';
 
-export const alt = 'Matchup Analysis — March Madness 2026';
+export const alt = 'Matchup Analysis — Golden Bracket';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 
@@ -283,7 +283,7 @@ export default async function Image({ params }: { params: Promise<{ slug: string
           }}
         >
           <div style={{ fontSize: 13, color: '#6B6B6B', textTransform: 'uppercase', letterSpacing: '2px' }}>
-            March Madness 2026
+            Golden Bracket
           </div>
         </div>
       </div>

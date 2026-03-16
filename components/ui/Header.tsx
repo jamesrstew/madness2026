@@ -7,7 +7,7 @@ export default function Header() {
     <header className="sticky top-0 z-50 border-b border-rule bg-paper/95 backdrop-blur-md">
       <nav className="mx-auto flex max-w-7xl items-center justify-between px-4 sm:px-6 py-3 sm:py-4">
         <Link href="/bracket" className="font-display text-lg sm:text-xl tracking-tight text-old-gold">
-          Madness 2026
+          Golden Bracket
         </Link>
 
         <div className="flex gap-3 sm:gap-6 text-sm">

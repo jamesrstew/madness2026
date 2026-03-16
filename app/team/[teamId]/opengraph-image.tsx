@@ -1,7 +1,7 @@
 import { ImageResponse } from 'next/og';
 import { findTeamById, getTeamStats, ensureHash } from '@/lib/og-utils';
 
-export const alt = 'Team Profile — March Madness 2026';
+export const alt = 'Team Profile — Golden Bracket';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 
@@ -191,7 +191,7 @@ export default async function Image({ params }: { params: Promise<{ teamId: stri
           {/* Bottom watermark */}
           <div style={{ display: 'flex', marginTop: 32 }}>
             <div style={{ display: 'flex', fontSize: 13, color: 'rgba(255,255,255,0.25)', textTransform: 'uppercase', letterSpacing: '2px' }}>
-              March Madness 2026
+              Golden Bracket
             </div>
           </div>
         </div>

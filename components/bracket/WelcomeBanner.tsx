@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 
-const STORAGE_KEY = 'madness2026-welcome-dismissed';
+const STORAGE_KEY = 'golden-bracket-welcome-dismissed';
 
 export default function WelcomeBanner() {
   const [visible, setVisible] = useState(false);
@@ -33,12 +33,13 @@ export default function WelcomeBanner() {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className="font-display text-xl">
-                  March Madness 2026
+                  Golden Bracket
                 </h2>
                 <p className="mt-2 text-base text-ink-muted leading-relaxed max-w-2xl">
-                  Click any team to make your pick, or hit <em>Auto-fill</em> to let our algorithm do it.
-                  Tap <em>Analyze</em> on any matchup to see a quick prediction before you pick.
-                  68 teams, 9 prediction factors, real ESPN data.
+                  No one has ever picked a perfect bracket. This is your best shot.
+                  Click any team to make your pick, or hit <em>Auto-fill</em> to let our algorithm build your golden ticket.
+                  Tap <em>Analyze</em> on any matchup for a full breakdown.
+                  68 teams, 10 prediction factors, real ESPN data.
                 </p>
               </div>
               <button

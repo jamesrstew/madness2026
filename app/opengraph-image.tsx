@@ -1,6 +1,6 @@
 import { ImageResponse } from 'next/og';
 
-export const alt = 'March Madness 2026 — Algorithm-Powered Bracket Predictor';
+export const alt = 'Golden Bracket — Your Best Shot at a Perfect Bracket';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 
@@ -30,8 +30,8 @@ export default async function Image() {
             color: '#1A1A1A',
           }}
         >
-          <span style={{ color: '#8B6914' }}>March</span>
-          <span style={{ marginLeft: 18 }}>Madness 2026</span>
+          <span style={{ color: '#8B6914' }}>Golden</span>
+          <span style={{ marginLeft: 18 }}>Bracket</span>
         </div>
 
         <div
@@ -43,7 +43,7 @@ export default async function Image() {
             fontStyle: 'italic',
           }}
         >
-          Algorithm-Powered Bracket Predictor
+          Your Best Shot at a Perfect Bracket
         </div>
 
         <div

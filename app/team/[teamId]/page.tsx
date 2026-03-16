@@ -33,7 +33,7 @@ export async function generateMetadata({
     title,
     description,
     openGraph: {
-      title: `${team.shortName} — ${team.region} Region #${team.seed} Seed | March Madness 2026`,
+      title: `${team.shortName} — ${team.region} Region #${team.seed} Seed | Golden Bracket`,
       description,
     },
   };

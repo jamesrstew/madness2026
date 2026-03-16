@@ -1,7 +1,7 @@
 import type { Matchup } from '@/lib/types/bracket';
 
 // Bump version when team IDs or bracket structure changes
-const STORAGE_KEY = 'madness2026_bracket_v2';
+const STORAGE_KEY = 'golden_bracket_v2';
 
 interface SerializedBracketState {
   matchups: [string, Matchup][];

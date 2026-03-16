@@ -32,14 +32,14 @@ export const metadata: Metadata = {
         : "http://localhost:3000",
   ),
   title: {
-    default: "March Madness 2026 — Bracket Predictor",
-    template: "%s | March Madness 2026",
+    default: "Golden Bracket — Your Best Shot at a Perfect Bracket",
+    template: "%s | Golden Bracket",
   },
   description:
-    "Build your 2026 NCAA Tournament bracket with algorithm-powered predictions. 68 teams, 9 weighted factors, and real ESPN data.",
+    "No one has ever picked a perfect bracket. Golden Bracket gives you the best shot — algorithm-powered predictions across 68 teams, 10 weighted factors, and real ESPN data.",
   openGraph: {
     type: "website",
-    siteName: "March Madness 2026 Bracket Predictor",
+    siteName: "Golden Bracket",
     locale: "en_US",
   },
   twitter: {

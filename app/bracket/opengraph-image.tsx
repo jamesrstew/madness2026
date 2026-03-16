@@ -1,6 +1,6 @@
 import { ImageResponse } from 'next/og';
 
-export const alt = 'Build Your Bracket — March Madness 2026';
+export const alt = 'Build Your Bracket — Golden Bracket';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 
@@ -102,7 +102,7 @@ export default async function Image() {
             letterSpacing: '2px',
           }}
         >
-          March Madness 2026
+          Golden Bracket
         </div>
       </div>
     ),
