@@ -14,6 +14,9 @@ export default function Header() {
           <Link href="/bracket" className="text-ink-muted hover:text-old-gold transition-colors">
             Bracket
           </Link>
+          <Link href="/methodology" className="text-ink-muted hover:text-old-gold transition-colors">
+            Methodology
+          </Link>
         </div>
       </nav>
     </header>

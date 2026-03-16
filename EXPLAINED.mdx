@@ -1,0 +1,324 @@
+# How Golden Bracket Predicts March Madness
+
+**Golden Bracket Research Team**
+
+*March 2026*
+
+---
+
+## The Big Picture
+
+Every March, 68 college basketball teams enter a single-elimination tournament. Lose once and you're done. This format is what makes the tournament so thrilling to watch — and so brutally difficult to predict.
+
+Golden Bracket is a prediction system that tries to answer two questions: **Who wins this specific game?** and **Who's most likely to cut down the nets?** It does this by combining hard statistical analysis with betting market intelligence, historical patterns, and a healthy respect for the chaos that makes March Madness what it is.
+
+Here's the 30-second version: We rate every team across ten dimensions, calculate head-to-head probabilities, adjust for real-world factors like travel distance and injuries, blend in signals from prediction markets, then simulate the entire tournament 10,000 times. The result is a probability distribution — not a prediction of what *will* happen, but a map of what *could* happen and how likely each outcome is.
+
+The rest of this document explains how each piece works.
+
+---
+
+## 1. Where the Data Comes From
+
+No prediction system is better than its data. Golden Bracket pulls from three sources that each bring something different to the table:
+
+**Efficiency statistics** come from CollegeBasketballData, a service that provides tempo-free, schedule-adjusted metrics for every D-I team. These are the building blocks — how well does a team score per possession? How well does it prevent scoring? How strong is their schedule? This data updates daily.
+
+**Game-by-game results** come from ESPN's API. This gives us box scores, recent schedules, and — critically — who's leading the team in points, rebounds, and assists game by game. That last part becomes important when we talk about detecting injuries. This data updates within minutes of each game.
+
+**Prediction market odds** come from Polymarket, where people bet real money on tournament outcomes. The insight here is simple: when thousands of people put their money where their mouth is, the resulting prices tend to be surprisingly accurate. We use these as a sanity check and supplementary signal. This data is refreshed every 30 minutes.
+
+### The Four Factors of Basketball
+
+Before we rate teams, we need to understand what actually drives winning in basketball. In 2004, analyst Dean Oliver identified four things that explain the vast majority of a team's success. For each, we track both the offensive version (how well you do it) and the defensive version (how well you prevent it):
+
+1. **Shooting efficiency** — Not just field goal percentage, but *effective* field goal percentage, which gives extra credit for three-pointers since they're worth 50% more than twos. A team that shoots 45% but makes a lot of threes is more efficient than a team that shoots 45% on all two-pointers.
+
+2. **Taking care of the ball** — Turnovers are wasted possessions. We measure what percentage of a team's possessions end in a turnover. On defense, we measure how often they force the other team into turnovers.
+
+3. **Offensive rebounding** — When you miss a shot, how often do you get the ball back for another try? And on defense, how well do you prevent that second chance?
+
+4. **Getting to the free throw line** — Free throws are the most efficient shot in basketball. Teams that draw fouls and get to the line have a significant edge.
+
+These four factors, on both ends of the floor, form the foundation of our team evaluation.
+
+---
+
+## 2. How We Rate Each Team
+
+### The Ten-Factor Composite
+
+Golden Bracket rates every tournament team on a 0-to-100 scale using ten factors. Think of it like a weighted report card where some subjects matter more than others:
+
+| Factor | Weight | What It Measures |
+|--------|--------|-----------------|
+| Adjusted Efficiency Margin | 32% | The single best predictor of team quality — points scored minus points allowed per 100 possessions, adjusted for schedule strength. This is the backbone of the rating. |
+| Strength of Schedule | 10% | How tough was the road to get here? Beating good teams means more than running up the score against weak opponents. |
+| Coaching Experience | 10% | Has this coach been to the Final Four before? Won championships? Navigated tournament pressure? Experience matters in March. |
+| Performance Consistency | 10% | Does this team win by steady margins, or are they a rollercoaster? Consistent teams are more predictable and tend to handle pressure better. |
+| Recent Form | 10% | How has the team been playing lately? A hot streak heading into the tournament is a real signal, not a superstition. |
+| Turnover Differential | 7% | Combines offensive ball security with defensive pressure. Teams that protect the ball and create turnovers get more possessions. |
+| Offensive Rebounding | 6% | Second-chance points add up. This captures the gap between a team's offensive rebounding and their opponent's. |
+| Offensive Shooting Efficiency | 5% | How efficiently does the offense convert shots? |
+| Defensive Shooting Efficiency | 5% | How well does the defense contest shots and prevent efficient scoring? |
+| Free Throw Rate Differential | 5% | Combines getting to the line on offense with keeping opponents off the line on defense. |
+
+**Why these specific weights?** The big question is how much credit to give the efficiency margin (32%) versus the individual components that make it up (shooting, turnovers, rebounding, free throws). The issue is that efficiency margin already *contains* those components — it's literally derived from them. If we weighted everything equally, we'd essentially be counting the same information twice.
+
+Our solution: give efficiency margin the lion's share of the weight as the primary quality signal, then give the individual components smaller weights (5-7% each) to capture situations where teams have specific strengths or weaknesses that the aggregate number masks. The remaining 30% goes to factors that capture genuinely different information: schedule strength, coaching, consistency, and momentum.
+
+**All weights add up to 100%.** This is a hard constraint — every team is evaluated on the same total budget.
+
+### Comparing Apples to Apples
+
+Raw stats aren't directly comparable. An efficiency margin of +25 is elite, while an offensive rebounding rate of 0.35 is also elite — but they're on completely different scales. To combine them meaningfully, we normalize each factor so it represents **how far above or below the tournament average** a team is.
+
+Specifically, for each factor, we calculate the average and spread across all 68 tournament teams, then express each team's value as a number of standard deviations from the mean. A team that's two standard deviations above average in efficiency margin and one standard deviation above average in coaching gets those contributions weighted and summed into a single composite score.
+
+We normalize against the tournament field specifically, not all 360+ D-I teams. Why? Because the tournament field is already the cream of the crop. Comparing a 1-seed to the national average would compress all the meaningful differences into a tiny range. By comparing within the tournament, we maximize our ability to distinguish between the teams that actually play each other.
+
+### When the Game is Close, Intangibles Matter More
+
+Here's an insight that separates our approach from simpler rating systems: **in closely matched games, the intangible factors matter more.**
+
+When a 1-seed plays a 16-seed, raw talent dominates. It barely matters who has the more experienced coach or who's been on a hot streak. But when an 8-seed plays a 9-seed? Those teams are essentially equal in talent. Coaching experience, consistency, and momentum become the tiebreakers.
+
+We model this by gradually boosting the weight of coaching, consistency, and recent form as the seed gap shrinks. For an 8-vs-9 matchup, these factors get up to a 50% boost in importance. For a 1-vs-16 matchup, no boost at all. The transition is smooth — it's not a cliff, it's a ramp.
+
+After boosting, we renormalize all weights to still add up to 100%. This means the boost doesn't add information from nowhere — it *redistributes attention* toward the factors that matter most when teams are evenly matched.
+
+### The Coaching Factor
+
+We score coaches on their tournament track record:
+
+- **Final Four appearances** — Coaches who've been to the Final Four four or more times get the maximum credit. One appearance still counts, but less.
+- **Championships** — Each title adds to the score, capped at a maximum to prevent one dynasty coach from distorting everything.
+- **Tournament experience** — Has this coach been here before? A coach with 15+ tournament appearances has seen every situation. A first-time tournament coach gets a small penalty — not because they're bad, but because the pressure and format are genuinely new.
+
+This isn't about saying "Coach X is better than Coach Y" in some absolute sense. It's about capturing the documented advantage that experienced tournament coaches have in making halftime adjustments, managing game pace, and handling the unique single-elimination pressure.
+
+### Consistency Matters
+
+We look at a team's game-by-game scoring margins and measure how much they vary. A team that wins by 8, 12, 10, 7, and 15 is more trustworthy than a team that wins by 30, then loses by 2, then wins by 25, then loses by 5.
+
+The math is straightforward: we calculate the standard deviation of a team's scoring margins across the season. Lower standard deviation (more consistent) translates to a higher consistency score.
+
+### Recent Form
+
+A game played yesterday matters more than a game played in November. We weight recent results more heavily using an exponential decay — a result from 30 days ago counts for half as much as a result from today, and it continues fading from there.
+
+We also cap blowout margins at 20 points. Beating someone by 40 shouldn't count four times as much as beating them by 10 — past a certain point, the starters are on the bench and the margin is meaningless.
+
+Conference tournament games get a 1.5x boost because they're the most recent high-stakes games before the NCAA tournament begins.
+
+---
+
+## 3. Head-to-Head: Who Wins This Game?
+
+### The Log5 Method
+
+Once we have ratings for both teams, we need to convert them into a probability. Golden Bracket uses a method called **Log5**, originally developed by baseball statistician Bill James in 1981.
+
+The idea is intuitive: if Team A would beat an average team 80% of the time, and Team B would beat an average team 60% of the time, what happens when they play each other? It's not just "80 minus 60" — that would be meaningless. Log5 accounts for the fact that both teams are above average and produces a mathematically sound probability.
+
+For those two teams, Log5 gives Team A roughly a 73% chance. The formula naturally handles edge cases: if both teams are equally strong, you get exactly 50/50. If one team is overwhelmingly stronger, you get close to (but never exactly) 100%.
+
+**A useful property:** The system doesn't assume that if A beats B, and B beats C, then A must beat C. In practice, specific matchup dynamics can create non-transitive results — think rock-paper-scissors at a subtler level.
+
+### Matchup-Specific Adjustments
+
+The base probability assumes teams are generic — it doesn't account for stylistic interactions. We apply four adjustments after the initial calculation:
+
+**Tempo mismatch.** When an extremely fast team (top 20 in pace) faces an extremely slow team (bottom 20), the fast team gets a 2% probability boost. Fast teams tend to impose their preferred tempo because the shot clock creates a floor on pace — you can't play slower than 30 seconds per possession, but you can push the ball in 10. This advantage disappears when both teams play at a similar speed.
+
+**Rebounding edge.** When one team has a significantly better offensive rebounding rate (more than a 5% gap), they get a 1.5% probability boost. Second-chance points accumulate over 70+ possessions — a team that consistently creates extra opportunities has a compounding advantage.
+
+**Turnover battle.** Similarly, when one team is significantly better at protecting the ball (more than a 3% gap in turnover rate), they get a 1.5% boost. Fewer turnovers means more chances to score.
+
+**Three-point dependency penalty.** Teams that rely heavily on three-point shooting face a 1% penalty. This isn't because three-point shooting is bad — it's because it's *volatile*. In a single-elimination game, a team that lives and dies by the three can have a cold shooting night that ends their season. Two-point-oriented teams have more stable offensive production.
+
+**All adjustments are capped at a combined 5% in either direction.** This prevents edge cases where multiple adjustments stack up to an unreasonable distortion. The adjustments are meant to refine the prediction, not override it.
+
+---
+
+## 4. The X-Factors
+
+Beyond pure basketball analysis, three real-world factors can meaningfully shift a game's outcome.
+
+### Where the Game is Played
+
+Tournament games are at "neutral" venues, but neutral is relative. A Duke team playing in Charlotte (90 miles from campus) has a crowd advantage over a Gonzaga team that flew 2,400 miles. The arena will be disproportionately filled with Duke fans, the travel fatigue is real, and the time zone shift matters.
+
+We calculate the actual driving distance from each team's campus to the game venue and assign a proximity score:
+
+| Distance to Venue | Proximity Score | Effect |
+|---|---|---|
+| Less than 100 miles | Strong advantage | Essentially a home game for crowd purposes |
+| 100-300 miles | Regional advantage | A meaningful fan travel edge |
+| 300-600 miles | Slight edge | Some fans make the trip |
+| 600+ miles | Neutral | No proximity effect |
+
+The adjustment is **differential** — what matters is the gap between the two teams' proximity, not the raw distance. If both teams are 500 miles away, the advantage cancels out. The maximum swing is 3% in either direction.
+
+### Is Everyone Healthy?
+
+Injuries can transform a Final Four contender into a second-round exit. The challenge is that reliable, real-time injury data for college basketball is notoriously hard to get. Teams aren't required to disclose injuries the way NFL teams are.
+
+Golden Bracket uses a creative workaround: **it watches who's leading the team in points, rebounds, and assists each game.** If a player who led the team in scoring for 80% of the season suddenly stops appearing in the last five games, something is wrong — likely injury, illness, or suspension.
+
+This "leader-absence" approach works because:
+- It uses publicly available game data, not insider injury reports
+- It's inherently weighted by importance — a bench player's absence won't trigger it
+- It captures the *impact* of the absence, not just the fact of it
+
+The system tracks three categories with different weights: scoring (55% importance), rebounding (25%), and assists (20%). Losing your leading scorer hurts more than losing your leading rebounder, which hurts more than losing your assist leader.
+
+The maximum health-related adjustment is 8% in either direction. If one team is fully healthy and the other is missing their star, this is a significant swing — and appropriately so. Research suggests losing a team's best player can shift win probability by 10-15%.
+
+When the system doesn't have enough game data to make a judgment (fewer than 8 games with leader information), it simply doesn't apply any adjustment. Better to say nothing than to guess.
+
+### History Doesn't Repeat, But It Rhymes
+
+Every year, people say "never pick a 5-12 upset." And every year, about 35% of 12-seeds win. Models that ignore this historical pattern tend to be systematically overconfident in the favorites.
+
+Golden Bracket gently blends its model-derived probability with the historical base rate for each seed matchup. The blend is 75% model, 25% history. So if our model says a 5-seed has a 70% chance of winning, but history says 5-seeds win only 65% of the time in this matchup, the calibrated probability would be about 68.7%.
+
+This is intentionally gentle. We don't want history to override the model's team-specific analysis — this year's 12-seed might genuinely be a much better or worse team than the historical average. The 25% weight just provides a nudge toward empirically observed base rates.
+
+Here are the historical upset rates that inform this calibration (based on every tournament from 2001-2025):
+
+| First Round Matchup | How Often the Favorite Wins | How Often the Underdog Wins |
+|---|---|---|
+| 1 vs 16 | 99.3% | 0.7% (it's happened twice) |
+| 2 vs 15 | 93.8% | 6.2% |
+| 3 vs 14 | 85.3% | 14.7% |
+| 4 vs 13 | 79.3% | 20.7% |
+| 5 vs 12 | 64.9% | 35.1% (the famous upset) |
+| 6 vs 11 | 62.8% | 37.2% |
+| 7 vs 10 | 60.7% | 39.3% |
+| 8 vs 9 | 52.0% | 48.0% (essentially a coin flip) |
+
+The pattern is clear: the closer the seeds, the less predictable the outcome. An 8-vs-9 game is barely better than a coin flip.
+
+---
+
+## 5. Listening to the Crowd
+
+### Why Betting Markets Matter
+
+You might wonder why a statistical model would bother with betting market data. Aren't we supposed to be smarter than the crowd?
+
+Not necessarily. Prediction markets — platforms where people bet real money on outcomes — have a remarkable track record of accuracy across domains from elections to sports. The reason is information aggregation: thousands of participants, each with their own information and analysis, collectively produce a price that reflects the sum of all that knowledge. Some bettors have injury information. Others have tactical analysis. Others are professional modelers themselves. The market price reflects all of it.
+
+The key insight is that **our model and the market make different mistakes.** Our model might miss that a key player tweaked his ankle in practice. The market might overreact to a team's brand name. By blending both signals, we get something more robust than either alone.
+
+### The 70/30 Blend
+
+Golden Bracket's final prediction is: **70% our statistical model + 30% prediction market odds.**
+
+Why give the model the majority? Because our model already incorporates most of the public information that market participants use — efficiency stats, schedule strength, recent results. The market's unique value is the *private* information and qualitative judgment that our model can't capture. That's worth 30%, but not 50%.
+
+Why not 90/10 or 100% model? Because models have blind spots. A purely statistical model has no way to know that a team's best player is dealing with a family emergency, or that a coaching feud is affecting team chemistry. Markets sometimes know these things, reflected in price movements that a model can't explain.
+
+### When Markets Go Dark
+
+Not every matchup has a prediction market. When market data is unavailable — whether because no market exists, the API is down, or the data is stale — the system simply runs on the model alone. The 70% becomes 100%. No guessing, no placeholder values. This "graceful degradation" means the system always produces a prediction, even if one data source disappears.
+
+---
+
+## 6. Simulating the Tournament 10,000 Times
+
+### What is Monte Carlo Simulation?
+
+Imagine you could run the entire NCAA tournament — all 63 games — from start to finish. Now imagine doing that not once, but ten thousand times. Each time, you flip a (weighted) coin for every game based on the probabilities we've calculated. Sometimes the 12-seed upsets the 5-seed. Sometimes the 1-seed cruises to the championship. Over 10,000 runs, you get a reliable picture of how likely each outcome is.
+
+That's Monte Carlo simulation. It's named after the famous casino in Monaco, and the core idea is beautifully simple: **if you simulate a random process enough times, the frequencies of outcomes converge to the true probabilities.** It's the same principle that makes casino profits predictable even though individual bets are random.
+
+For each game in each simulation, we calculate the win probability using the full pipeline described above (team ratings, head-to-head comparison, matchup adjustments, location, health, historical calibration), then determine the winner by generating a random number. If our model says Team A has a 65% chance, they win whenever the random number falls below 0.65.
+
+### The Simulation Learns as It Goes
+
+Here's a subtle but important feature: **within each simulation run, the system updates its beliefs about teams based on what's happened so far in that simulation.**
+
+Think about it this way. If a 12-seed beats a 5-seed in round one, what does that tell us about the 12-seed's chances in round two? Something. They just proved they can win under pressure against a good team. A purely static model would ignore this — it would use the same pre-tournament rating for every round. Our simulation gently increases the winner's estimated strength when they pull off an upset, and slightly decreases it when a heavy favorite wins (a mild form of regression to the mean).
+
+The adjustments are deliberately small — at most about 1.5 percentage points per game. We want to reward genuine Cinderella runs without letting a single lucky bounce dramatically distort the rest of the bracket. The key word is *nudge*, not *overhaul*.
+
+### Keeping Each Simulation Independent
+
+A critical technical detail: each of the 10,000 simulation runs starts fresh. The learning updates that happen during run #47 have zero effect on run #48. This independence is what makes the final statistics valid. If simulations could influence each other, the percentages would be biased.
+
+### What the Simulation Produces
+
+After 10,000 runs, we count how many times each team reached each milestone:
+
+- **Sweet 16** — Survived the first weekend
+- **Elite 8** — Two wins from the Final Four
+- **Final Four** — One of the last four standing
+- **Championship** — Won it all
+
+Divide by 10,000 and you get a percentage. If Duke won the championship in 1,200 out of 10,000 simulations, their championship probability is 12.0%. These percentages are what you see in the bracket predictions.
+
+---
+
+## 7. The Full Pipeline
+
+When you click on a matchup in Golden Bracket, here's what happens behind the scenes, in order:
+
+**Step 1: Gather the data.** We fetch team statistics, schedules, and market odds simultaneously — no waiting for one to finish before starting the next.
+
+**Step 2: Clean and prepare.** Missing data gets filled with sensible defaults. Statistics are checked for errors.
+
+**Step 3: Rate both teams.** The ten-factor composite produces a 0-100 rating for each.
+
+**Step 4: Calculate the base probability.** Log5 converts two ratings into a win probability.
+
+**Step 5: Adjust for matchup dynamics.** Tempo, rebounding, turnovers, and three-point dependency are evaluated. Adjustments are capped at 5%.
+
+**Step 6: Adjust for location.** How far is each team from the venue? Adjustment capped at 3%.
+
+**Step 7: Adjust for health.** Are key players missing from recent games? Adjustment capped at 8%.
+
+**Step 8: Calibrate against history.** Blend with the historical upset rate for this seed matchup (75% model, 25% history).
+
+**Step 9: Blend with the market.** Combine with prediction market odds (70% model, 30% market).
+
+**Step 10: Deliver the prediction.** A final win probability between 1% and 99%, along with a confidence label (Toss-up, Slight edge, Clear favorite, Strong favorite, or Dominant).
+
+The entire process takes about one second.
+
+---
+
+## 8. What We Get Wrong
+
+No model is perfect, and we think being transparent about limitations is more useful than pretending they don't exist.
+
+**We don't model individual players.** Our health assessment is a clever heuristic, but it's not a substitute for knowing exactly which players are available, how many minutes they'll play, and what their individual impact is. A proper player-level model would be significantly more accurate but requires data that's difficult to obtain reliably for college basketball.
+
+**Coaching is a career stat, not a season stat.** Our coaching factor captures tournament pedigree but not whether a coach has made brilliant tactical adjustments this specific season, or whether they're particularly good at preparing for unfamiliar opponents. A first-year head coach at a blue blood program inherits none of the previous coach's score.
+
+**Markets can be biased.** Prediction markets for college basketball include a lot of recreational bettors who bet with their hearts. Traditional powerhouses like Duke, Kentucky, and North Carolina tend to be overpriced because fans bet on their team. By incorporating market data, we inherit some of this bias. The 70/30 blend limits the damage, but it's still there.
+
+**We assume games are independent.** In reality, a team that just played a grueling overtime game yesterday is at a disadvantage today. Fatigue, both physical and emotional, accumulates across rounds. Our model treats each game as a fresh event, which isn't quite true.
+
+**Historical calibration has limits.** We use 25 years of data, but for specific later-round matchups (say, 1-seed vs 4-seed in the Sweet 16), we might only have 25-30 games to draw from. That's enough for a rough baseline but not enough for precise calibration.
+
+**We know what we don't know.** The biggest category of prediction error is the truly unknowable: the referee's whistle, the ball that bounces on the rim three times before deciding which way to fall, the freshman who either locks up or catches fire under the bright lights. Single-elimination tournaments are inherently volatile, and the best any model can do is quantify that volatility honestly.
+
+---
+
+## 9. Putting It All Together
+
+Golden Bracket is built on a simple philosophy: **use many good signals, weight them carefully, be honest about uncertainty, and never pretend to know more than you do.**
+
+The system combines:
+- Efficiency-based team evaluation across ten dimensions
+- A mathematically rigorous head-to-head comparison model
+- Real-world adjustments for travel, injuries, and style matchups
+- 25 years of historical tournament patterns
+- The collective wisdom of prediction markets
+- 10,000 simulated tournaments that explore the full range of possible outcomes
+
+No single component is revolutionary. The value is in how they're assembled — each piece catches something the others miss, and the ensemble is more reliable than any individual signal.
+
+Will it pick a perfect bracket? No. Nobody ever has, and the odds against it are astronomical. But it will give you the best possible map of what's likely, what's plausible, and what would be a genuine shock. That's the best anyone can do with March Madness — and honestly, the unpredictability is what makes it worth watching.

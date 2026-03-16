@@ -63,3 +63,30 @@ body {
   border: none;
   border-top: 1px solid var(--color-rule);
 }
+
+/* ── Methodology / Whitepaper ──────────────────────────── */
+
+/* KaTeX display math: centered with breathing room */
+.methodology .katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.75rem 0;
+  margin: 1.5rem 0;
+}
+
+/* KaTeX inline math: slight size bump for readability */
+.methodology .katex {
+  font-size: 1.05em;
+}
+
+/* Ensure math doesn't overflow on mobile */
+.methodology .katex-display > .katex {
+  max-width: 100%;
+}
+
+/* Abstract / author byline styling */
+.methodology > p:first-of-type {
+  font-size: 1.125rem;
+  color: var(--color-ink-muted);
+  font-style: italic;
+}
