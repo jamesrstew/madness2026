@@ -63,13 +63,13 @@ function formatValue(value: number, format?: string): string {
 
 export default function TeamStatsDisplay({ stats }: TeamStatsProps) {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
       {STAT_GROUPS.map((group) => (
         <div
           key={group.title}
-          className="rounded-xl bg-navy p-5 border border-white/10"
+          className="border border-rule bg-surface p-4 sm:p-5"
         >
-          <h4 className="text-sm font-semibold text-gray-400 uppercase tracking-wider mb-4">
+          <h4 className="text-xs font-medium uppercase tracking-widest text-ink-faint mb-4 pb-2 border-b border-rule">
             {group.title}
           </h4>
           <div className="space-y-3">
@@ -78,8 +78,8 @@ export default function TeamStatsDisplay({ stats }: TeamStatsProps) {
               if (typeof value !== 'number') return null;
               return (
                 <div key={key} className="flex items-center justify-between">
-                  <span className="text-sm text-gray-300">{label}</span>
-                  <span className="text-sm font-semibold">
+                  <span className="text-sm text-ink-muted">{label}</span>
+                  <span className="font-mono text-sm font-medium">
                     {formatValue(value, format)}
                   </span>
                 </div>

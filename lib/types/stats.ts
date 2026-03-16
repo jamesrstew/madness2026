@@ -24,6 +24,14 @@ export interface TeamStats {
   record: { wins: number; losses: number };
 }
 
+export interface GameLeader {
+  name: string;
+  shortName: string;
+  value: number;
+  headshot?: string;
+  category: 'points' | 'rebounds' | 'assists';
+}
+
 export interface GameResult {
   date: string;
   opponent: string;
@@ -31,4 +39,37 @@ export interface GameResult {
   oppScore: number;
   location: 'home' | 'away' | 'neutral';
   result: 'W' | 'L';
+  leaders?: GameLeader[];
+}
+
+export interface SeasonLeader {
+  name: string;
+  shortName: string;
+  headshot?: string;
+  gamesLed: number;
+  totalValue: number;
+  category: 'points' | 'rebounds' | 'assists';
+}
+
+export type PlayerStatus = 'available' | 'questionable' | 'likely_out';
+export type TeamHealthStatus = 'healthy' | 'minor_concern' | 'degraded' | 'significant_concern' | 'unknown';
+
+export interface PlayerHealthAssessment {
+  name: string;
+  shortName: string;
+  headshot?: string;
+  category: 'points' | 'rebounds' | 'assists';
+  gamesLed: number;
+  totalGamesWithData: number;
+  recentAppearances: number;
+  dominance: number;
+  absenceRatio: number;
+  impact: number;
+  status: PlayerStatus;
+}
+
+export interface TeamHealthAssessment {
+  score: number;
+  status: TeamHealthStatus;
+  players: PlayerHealthAssessment[];
 }

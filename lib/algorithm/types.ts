@@ -5,9 +5,10 @@ export interface CompositeFactors {
   tov: number;
   orb: number;
   ftr: number;
-  tempo: number;
   sos: number;
   recentForm: number;
+  coaching: number;
+  variance: number; // performance consistency (lower stddev of margins = higher score)
 }
 
 export interface CompositeWeights {
@@ -17,9 +18,10 @@ export interface CompositeWeights {
   tov: number;
   orb: number;
   ftr: number;
-  tempo: number;
   sos: number;
   recentForm: number;
+  coaching: number;
+  variance: number;
 }
 
 export interface TeamRating {

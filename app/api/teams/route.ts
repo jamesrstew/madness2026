@@ -1,17 +1,10 @@
 import { NextResponse } from 'next/server';
-import { getTeams } from '@/lib/api/espn';
-import { getCbbdName } from '@/lib/api/team-mapping';
+import { getTournamentTeams } from '@/lib/api/tournament';
 
 export async function GET() {
   try {
-    const teams = await getTeams();
-
-    const merged = teams.map((team) => ({
-      ...team,
-      cbbdName: getCbbdName(team.id),
-    }));
-
-    return NextResponse.json(merged);
+    const teams = await getTournamentTeams();
+    return NextResponse.json(teams);
   } catch (error) {
     console.error('Failed to fetch teams:', error);
     return NextResponse.json(

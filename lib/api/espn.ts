@@ -1,5 +1,5 @@
 import type { Team } from '../types/team';
-import type { TeamStats, GameResult } from '../types/stats';
+import type { TeamStats, GameResult, GameLeader } from '../types/stats';
 import { cachedFetch, ESPN_TEAMS_TTL, ESPN_SCORES_TTL } from './cache';
 
 const BASE =
@@ -45,6 +45,11 @@ export async function getTeamStats(teamId: number): Promise<TeamStats> {
       return stat ? Number(stat.value) : 0;
     };
 
+    // Parse record from team summary if available
+    const recordSummary = json.results?.team?.record?.items?.[0]?.summary
+      ?? json.team?.record?.items?.[0]?.summary;
+    const recordParts = recordSummary?.split('-') ?? ['0', '0'];
+
     return {
       adjOE: 0,
       adjDE: 0,
@@ -68,8 +73,75 @@ export async function getTeamStats(teamId: number): Promise<TeamStats> {
       apg: find('general', 'avgAssists'),
       spg: find('general', 'avgSteals'),
       bpg: find('general', 'avgBlocks'),
-      record: { wins: 0, losses: 0 },
+      record: { wins: Number(recordParts[0]), losses: Number(recordParts[1]) },
     } satisfies TeamStats;
+  }, ESPN_TEAMS_TTL);
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function parseScore(score: any): number {
+  if (score == null) return 0;
+  if (typeof score === 'object') return Number(score.value ?? score.displayValue ?? 0);
+  return Number(score) || 0;
+}
+
+export async function getTeamSchedule(teamId: number): Promise<GameResult[]> {
+  return cachedFetch(`espn:schedule:${teamId}`, async () => {
+    const res = await fetch(`${BASE}/teams/${teamId}/schedule`);
+    if (!res.ok) throw new Error(`ESPN schedule request failed: ${res.status}`);
+    const json = await res.json();
+
+    const events = json.events ?? [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return events.flatMap((event: any) => {
+      try {
+        const competition = event.competitions?.[0];
+        if (!competition || competition.status?.type?.name !== 'STATUS_FINAL') return [];
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const teamEntry = competition.competitors?.find((c: any) => Number(c.id) === teamId);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const oppEntry = competition.competitors?.find((c: any) => Number(c.id) !== teamId);
+        if (!teamEntry || !oppEntry) return [];
+
+        const teamScore = parseScore(teamEntry.score);
+        const oppScore = parseScore(oppEntry.score);
+        const isWin = teamScore > oppScore;
+
+        // Extract per-game leaders (points, rebounds, assists)
+        const leaders: GameLeader[] = [];
+        const validCategories = ['points', 'rebounds', 'assists'] as const;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        for (const cat of (teamEntry.leaders ?? []) as any[]) {
+          const catName = cat.name as string;
+          if (!validCategories.includes(catName as typeof validCategories[number])) continue;
+          const top = cat.leaders?.[0];
+          if (!top?.athlete) continue;
+          leaders.push({
+            name: top.athlete.displayName ?? top.athlete.lastName ?? 'Unknown',
+            shortName: top.athlete.shortName ?? top.athlete.lastName ?? '',
+            value: Number(top.value ?? 0),
+            headshot: top.athlete.headshot?.href
+              ?? (top.athlete.id ? `https://a.espncdn.com/combiner/i?img=/i/headshots/mens-college-basketball/players/full/${top.athlete.id}.png&w=96&h=70` : undefined),
+            category: catName as GameLeader['category'],
+          });
+        }
+
+        return [{
+          date: event.date?.split('T')[0] ?? '',
+          opponent: oppEntry.team?.shortDisplayName ?? oppEntry.team?.displayName ?? 'Unknown',
+          score: teamScore,
+          oppScore,
+          location: teamEntry.homeAway === 'home' ? 'home' as const
+            : teamEntry.homeAway === 'away' ? 'away' as const
+            : 'neutral' as const,
+          result: isWin ? 'W' as const : 'L' as const,
+          leaders,
+        }];
+      } catch {
+        return [];
+      }
+    });
   }, ESPN_TEAMS_TTL);
 }
 

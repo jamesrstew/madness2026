@@ -12,18 +12,18 @@ export default function TeamCard({ team, variant = 'compact' }: TeamCardProps) {
 
   return (
     <div
-      className={`rounded-xl bg-navy border border-white/10 overflow-hidden ${
-        isExpanded ? 'p-8' : 'p-4'
+      className={`border border-rule bg-surface overflow-hidden ${
+        isExpanded ? 'p-4 sm:p-6 lg:p-8' : 'p-4'
       }`}
-      style={{ borderLeftColor: `#${team.color}`, borderLeftWidth: 4 }}
+      style={{ borderLeftColor: `#${team.color}`, borderLeftWidth: 2 }}
     >
-      <div className={`flex items-center ${isExpanded ? 'gap-6' : 'gap-3'}`}>
+      <div className={`flex items-center ${isExpanded ? 'gap-3 sm:gap-4 lg:gap-6' : 'gap-3'}`}>
         {/* Logo */}
         {team.logo && (
           <img
             src={team.logo}
             alt={team.name}
-            className={isExpanded ? 'h-20 w-20' : 'h-10 w-10'}
+            className={isExpanded ? 'h-14 w-14 sm:h-16 sm:w-16 lg:h-20 lg:w-20' : 'h-10 w-10'}
           />
         )}
 
@@ -31,7 +31,7 @@ export default function TeamCard({ team, variant = 'compact' }: TeamCardProps) {
           <div className="flex items-center gap-2">
             {team.seed !== undefined && (
               <span
-                className="inline-flex items-center justify-center rounded-full bg-white/10 text-xs font-bold"
+                className="inline-flex items-center justify-center font-mono text-xs font-semibold text-ink-muted"
                 style={{
                   width: isExpanded ? 28 : 22,
                   height: isExpanded ? 28 : 22,
@@ -41,8 +41,8 @@ export default function TeamCard({ team, variant = 'compact' }: TeamCardProps) {
               </span>
             )}
             <h3
-              className={`font-bold truncate ${
-                isExpanded ? 'text-2xl' : 'text-sm'
+              className={`font-display truncate ${
+                isExpanded ? 'text-2xl' : 'text-sm font-medium'
               }`}
             >
               {team.name}
@@ -50,17 +50,17 @@ export default function TeamCard({ team, variant = 'compact' }: TeamCardProps) {
           </div>
 
           <div
-            className={`text-gray-400 ${isExpanded ? 'text-sm mt-1' : 'text-xs'}`}
+            className={`text-ink-muted ${isExpanded ? 'text-sm mt-1' : 'text-xs'}`}
           >
             <span>{team.conference}</span>
-            <span className="mx-1.5">|</span>
-            <span>
+            <span className="mx-2 text-rule">|</span>
+            <span className="font-mono">
               {team.record.wins}-{team.record.losses}
             </span>
           </div>
 
           {isExpanded && team.region && (
-            <span className="mt-2 inline-block rounded-full bg-white/10 px-3 py-0.5 text-xs text-gray-300">
+            <span className="mt-2 inline-block border border-rule px-3 py-0.5 text-xs text-ink-muted">
               {team.region} Region
             </span>
           )}

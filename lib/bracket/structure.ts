@@ -42,10 +42,10 @@ interface FirstFourSlot {
 }
 
 const FIRST_FOUR_SLOTS: FirstFourSlot[] = [
-  { seed: 16, region: 'East', label: '16a' },
-  { seed: 16, region: 'West', label: '16b' },
-  { seed: 11, region: 'South', label: '11a' },
-  { seed: 11, region: 'Midwest', label: '11b' },
+  { seed: 16, region: 'South', label: '16a' },     // Lehigh vs Prairie View A&M
+  { seed: 16, region: 'Midwest', label: '16b' },    // UMBC vs Howard
+  { seed: 11, region: 'West', label: '11a' },       // NC State vs Texas
+  { seed: 11, region: 'Midwest', label: '11b' },    // SMU vs Miami (OH)
 ];
 
 function matchupId(round: Round, region: Region | undefined, index: number): string {
@@ -149,12 +149,18 @@ export function generateInitialBracket(teams: Team[]): Matchup[] {
   const findTeam = (region: Region, seed: number): Team | undefined =>
     teams.find((t) => t.region === region && t.seed === seed);
 
+  const findAllTeams = (region: Region, seed: number): Team[] =>
+    teams.filter((t) => t.region === region && t.seed === seed);
+
   // First Four (4 play-in games)
   FIRST_FOUR_SLOTS.forEach((slot, i) => {
+    const playInTeams = findAllTeams(slot.region, slot.seed);
     matchups.push({
       id: matchupId('FIRST_FOUR', undefined, i),
       round: 'FIRST_FOUR',
       region: slot.region,
+      team1: playInTeams[0],
+      team2: playInTeams[1],
     });
   });
 

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getTeamStats } from '@/lib/api/espn';
+import { getTeamStatsReal } from '@/lib/api/tournament';
 
 export async function GET(request: NextRequest) {
   const teamId = request.nextUrl.searchParams.get('teamId');
@@ -12,8 +12,12 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const stats = await getTeamStats(Number(teamId));
-    return NextResponse.json(stats);
+    const stats = await getTeamStatsReal(Number(teamId));
+    return NextResponse.json(stats, {
+      headers: {
+        'Cache-Control': 'public, s-maxage=3600, stale-while-revalidate=86400',
+      },
+    });
   } catch (error) {
     console.error('Failed to fetch stats:', error);
     return NextResponse.json(

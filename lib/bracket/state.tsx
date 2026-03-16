@@ -12,6 +12,12 @@ import type { Matchup, BracketState } from '@/lib/types/bracket';
 import type { Team } from '@/lib/types/team';
 import { getNextMatchupId, getNextMatchupSlot } from './structure';
 import { saveBracket, loadBracket } from './storage';
+import {
+  encodeBracket,
+  decodeBracket,
+  getBracketFromUrl,
+  setBracketInUrl,
+} from './url-encoding';
 
 // ---------------------------------------------------------------------------
 // Actions
@@ -21,7 +27,9 @@ type BracketAction =
   | { type: 'SELECT_WINNER'; matchupId: string; winner: Team }
   | { type: 'RESET_BRACKET'; matchups: Matchup[] }
   | { type: 'LOAD_BRACKET'; matchups: Map<string, Matchup>; selections: Map<string, number> }
-  | { type: 'AUTO_FILL' };
+  | { type: 'AUTO_FILL'; predictions?: Map<string, { team1WinPct: number; team2WinPct: number }> }
+  | { type: 'APPLY_URL_SELECTIONS'; urlSelections: Map<string, 'team1' | 'team2'> }
+  | { type: 'SET_PREDICTIONS'; predictions: Map<string, { team1WinPct: number; team2WinPct: number }> };
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -139,6 +147,7 @@ function bracketReducer(state: BracketState, action: BracketAction): BracketStat
     case 'AUTO_FILL': {
       const matchups = new Map(state.matchups);
       const selections = new Map(state.selections);
+      const preds = action.predictions;
 
       // Process rounds in order so winners propagate
       const roundOrder = ['FIRST_FOUR', 'R64', 'R32', 'S16', 'E8', 'FF', 'CHAMPIONSHIP'] as const;
@@ -149,8 +158,11 @@ function bracketReducer(state: BracketState, action: BracketAction): BracketStat
           if (!matchup.team1 || !matchup.team2) continue;
           if (selections.has(id)) continue; // already picked
 
-          const prob1 = matchup.winProb1 ?? 0.5;
-          const prob2 = matchup.winProb2 ?? 0.5;
+          // Look up prediction from the passed-in cache, then fall back to matchup fields
+          const predKey = `${matchup.team1.id}-${matchup.team2.id}`;
+          const pred = preds?.get(predKey);
+          const prob1 = pred ? pred.team1WinPct : (matchup.winProb1 ?? 50);
+          const prob2 = pred ? pred.team2WinPct : (matchup.winProb2 ?? 50);
           const winner = prob1 >= prob2 ? matchup.team1 : matchup.team2;
 
           const updated = { ...matchup, winner };
@@ -172,6 +184,93 @@ function bracketReducer(state: BracketState, action: BracketAction): BracketStat
       const newState: BracketState = { matchups, selections, completionPct: 0 };
       newState.completionPct = computeCompletion(newState);
       return newState;
+    }
+
+    case 'APPLY_URL_SELECTIONS': {
+      const matchups = new Map(state.matchups);
+      const selections = new Map<string, number>();
+
+      // Reset matchups to base state: keep only teams from initial bracket,
+      // clear all winners and all teams placed by advancing from earlier rounds.
+      for (const [id, m] of matchups) {
+        if (m.round === 'FIRST_FOUR' || m.round === 'R64') {
+          matchups.set(id, { ...m, winner: undefined });
+        } else {
+          matchups.set(id, { id: m.id, round: m.round, region: m.region });
+        }
+      }
+
+      // Clear R64 slots that receive First Four winners (those team2s came from advancing)
+      for (let i = 0; i < 4; i++) {
+        const ffId = `FIRST_FOUR-${i}`;
+        const targetR64Id = getNextMatchupId(ffId);
+        if (targetR64Id) {
+          const m = matchups.get(targetR64Id);
+          if (m) {
+            const slot = getNextMatchupSlot(ffId);
+            matchups.set(targetR64Id, { ...m, [slot]: undefined });
+          }
+        }
+      }
+
+      // Apply URL picks round-by-round (same pattern as AUTO_FILL)
+      const roundOrder = ['FIRST_FOUR', 'R64', 'R32', 'S16', 'E8', 'FF', 'CHAMPIONSHIP'] as const;
+
+      for (const round of roundOrder) {
+        for (const [id, matchup] of matchups) {
+          if (matchup.round !== round) continue;
+          if (!matchup.team1 || !matchup.team2) continue;
+
+          const pick = action.urlSelections.get(id);
+          if (!pick) continue;
+
+          const winner = pick === 'team1' ? matchup.team1 : matchup.team2;
+          matchups.set(id, { ...matchup, winner });
+          selections.set(id, winner.id);
+
+          const nextId = getNextMatchupId(id);
+          if (nextId) {
+            const nextMatchup = matchups.get(nextId);
+            if (nextMatchup) {
+              const slot = getNextMatchupSlot(id);
+              matchups.set(nextId, { ...nextMatchup, [slot]: winner });
+            }
+          }
+        }
+      }
+
+      const newState2: BracketState = { matchups, selections, completionPct: 0 };
+      newState2.completionPct = computeCompletion(newState2);
+      return newState2;
+    }
+
+    case 'SET_PREDICTIONS': {
+      const matchups = new Map(state.matchups);
+      let changed = false;
+
+      for (const [predKey, pred] of action.predictions) {
+        // predKey format: "${team1Id}-${team2Id}"
+        // Find the matchup that has these two teams
+        for (const [id, matchup] of matchups) {
+          if (!matchup.team1 || !matchup.team2) continue;
+          const key = `${matchup.team1.id}-${matchup.team2.id}`;
+          if (key !== predKey) continue;
+
+          // Only update if values actually changed
+          if (matchup.winProb1 !== pred.team1WinPct || matchup.winProb2 !== pred.team2WinPct) {
+            matchups.set(id, {
+              ...matchup,
+              winProb1: pred.team1WinPct,
+              winProb2: pred.team2WinPct,
+            });
+            changed = true;
+          }
+          break;
+        }
+      }
+
+      if (!changed) return state;
+      return { ...state, matchups };
     }
 
     default:
@@ -199,9 +298,18 @@ const INITIAL_STATE: BracketState = {
 export function BracketProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(bracketReducer, INITIAL_STATE);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingUrlSelections = useRef<Map<string, 'team1' | 'team2'> | null>(null);
 
-  // Load from localStorage on mount
+  // Parse URL and load localStorage on mount
   useEffect(() => {
+    const encoded = getBracketFromUrl();
+    if (encoded) {
+      const urlSels = decodeBracket(encoded);
+      if (urlSels.size > 0) {
+        pendingUrlSelections.current = urlSels;
+      }
+    }
+
     const saved = loadBracket();
     if (saved) {
       dispatch({
@@ -212,11 +320,23 @@ export function BracketProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  // Debounced save to localStorage on every state change
+  // Apply URL selections once matchups are loaded
+  useEffect(() => {
+    if (pendingUrlSelections.current && state.matchups.size > 0) {
+      dispatch({
+        type: 'APPLY_URL_SELECTIONS',
+        urlSelections: pendingUrlSelections.current,
+      });
+      pendingUrlSelections.current = null;
+    }
+  }, [state.matchups.size]);
+
+  // Debounced save to localStorage + URL sync on every state change
   useEffect(() => {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
       saveBracket(state.matchups, state.selections);
+      setBracketInUrl(encodeBracket(state.selections, state.matchups));
     }, 500);
     return () => {
       if (saveTimer.current) clearTimeout(saveTimer.current);

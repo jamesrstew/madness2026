@@ -1,15 +1,50 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Source_Serif_4, Playfair_Display, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 import Header from "@/components/ui/Header";
 import Footer from "@/components/ui/Footer";
 
-const inter = Inter({ subsets: ["latin"] });
+const sourceSerif = Source_Serif_4({
+  subsets: ["latin"],
+  variable: "--font-sans",
+  display: "swap",
+});
+
+const playfair = Playfair_Display({
+  subsets: ["latin"],
+  variable: "--font-display",
+  display: "swap",
+});
+
+const ibmPlexMono = IBM_Plex_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-mono",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
-  title: "March Madness 2026 — Bracket Predictor",
+  metadataBase: new URL(
+    process.env.VERCEL_PROJECT_PRODUCTION_URL
+      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+      : process.env.VERCEL_URL
+        ? `https://${process.env.VERCEL_URL}`
+        : "http://localhost:3000",
+  ),
+  title: {
+    default: "March Madness 2026 — Bracket Predictor",
+    template: "%s | March Madness 2026",
+  },
   description:
-    "Build your 2026 NCAA Tournament bracket with algorithm-powered predictions",
+    "Build your 2026 NCAA Tournament bracket with algorithm-powered predictions. 68 teams, 9 weighted factors, and real ESPN data.",
+  openGraph: {
+    type: "website",
+    siteName: "March Madness 2026 Bracket Predictor",
+    locale: "en_US",
+  },
+  twitter: {
+    card: "summary_large_image",
+  },
 };
 
 export default function RootLayout({
@@ -19,7 +54,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={`${inter.className} antialiased`}>
+      <body className={`${sourceSerif.variable} ${playfair.variable} ${ibmPlexMono.variable} font-sans antialiased`}>
         <Header />
         <main className="court-bg min-h-screen">{children}</main>
         <Footer />

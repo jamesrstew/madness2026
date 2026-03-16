@@ -35,14 +35,14 @@ export default function WinProbability({
 
   return (
     <div className="w-full">
-      <div className="flex items-center justify-between text-sm font-semibold mb-2">
-        <span>{team1Name}</span>
-        <span className="text-xs text-gray-400">{label}</span>
-        <span>{team2Name}</span>
+      <div className="flex items-center justify-between text-sm sm:text-base mb-2">
+        <span className="font-medium">{team1Name}</span>
+        <span className="text-sm italic text-ink-muted">{label}</span>
+        <span className="font-medium">{team2Name}</span>
       </div>
-      <div className="relative flex h-10 w-full overflow-hidden rounded-lg">
+      <div className="relative flex h-9 sm:h-11 w-full overflow-hidden">
         <motion.div
-          className="flex items-center justify-center text-sm font-bold text-white"
+          className="flex items-center justify-center font-mono text-sm sm:text-base font-semibold text-white"
           style={{ backgroundColor: team1Color }}
           initial={{ width: '50%' }}
           animate={{ width: `${pct1}%` }}
@@ -51,7 +51,7 @@ export default function WinProbability({
           {pct1}%
         </motion.div>
         <motion.div
-          className="flex items-center justify-center text-sm font-bold text-white"
+          className="flex items-center justify-center font-mono text-sm sm:text-base font-semibold text-white"
           style={{ backgroundColor: team2Color }}
           initial={{ width: '50%' }}
           animate={{ width: `${pct2}%` }}
