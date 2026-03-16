@@ -33,7 +33,7 @@ export default function WelcomeBanner() {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className="font-display text-xl">
-                  Golden Bracket
+                  Chase the Perfect Bracket
                 </h2>
                 <p className="mt-2 text-base text-ink-muted leading-relaxed max-w-2xl">
                   No one has ever picked a perfect bracket. This is your best shot.
