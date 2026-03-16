@@ -84,7 +84,7 @@ function TeamRow({
       <Link
         href={`/team/${team.id}`}
         onClick={(e) => e.stopPropagation()}
-        className="flex-shrink-0 text-ink-faint opacity-0 transition-opacity hover:text-old-gold group-hover:opacity-100"
+        className="flex-shrink-0 text-ink-faint opacity-60 sm:opacity-0 transition-opacity hover:text-old-gold group-hover:opacity-100"
         title={`View ${team.shortName} profile`}
       >
         <svg width="14" height="14" viewBox="0 0 16 16" fill="none">
@@ -201,10 +201,9 @@ export default function GameCard({
         </div>
       )}
 
-      {/* Verdict + confidence + analysis link (hidden in compact mode) */}
+      {/* Verdict + confidence (hidden in compact mode) */}
       {!compact && team1 && team2 && (
         <div className="space-y-1.5 px-2.5 py-2">
-          {/* Verdict text */}
           {predictionLoading && !prediction ? (
             <Skeleton className="h-4 w-full" />
           ) : prediction?.verdict ? (
@@ -213,7 +212,6 @@ export default function GameCard({
             </p>
           ) : null}
 
-          {/* Confidence badge + analysis link */}
           <div className="flex items-center justify-between gap-2">
             {prediction?.confidence ? (
               <span
@@ -239,6 +237,19 @@ export default function GameCard({
             )}
           </div>
         </div>
+      )}
+
+      {/* Compact analysis link (mobile) */}
+      {compact && matchupUrl && (
+        <Link
+          href={matchupUrl}
+          className="flex items-center justify-center gap-1 px-2.5 py-1.5 text-[10px] font-medium text-old-gold/70 transition-colors hover:text-old-gold"
+        >
+          Analyze
+          <svg width="10" height="10" viewBox="0 0 16 16" fill="none">
+            <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </Link>
       )}
     </motion.div>
   );
