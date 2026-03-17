@@ -103,9 +103,18 @@ export function usePredictions() {
     }, 100);
   }, []);
 
+  /** Bulk-add entries to the cache (e.g. from auto-fill) and trigger a re-render. */
+  const addToCache = useCallback((entries: Map<string, PredictionEntry>) => {
+    for (const [key, entry] of entries) {
+      cache.current.set(key, entry);
+    }
+    if (entries.size > 0) setVersion((v) => v + 1);
+  }, []);
+
   return {
     predictions: cache.current,
     fetchForMatchups,
+    addToCache,
     isLoading: inflight.current.size > 0,
     /** Opaque version counter — subscribe to trigger re-renders when predictions arrive */
     version,

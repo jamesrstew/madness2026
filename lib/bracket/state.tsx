@@ -299,6 +299,8 @@ export function BracketProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(bracketReducer, INITIAL_STATE);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingUrlSelections = useRef<Map<string, 'team1' | 'team2'> | null>(null);
+  const latestState = useRef(state);
+  latestState.current = state;
 
   // Parse URL and load localStorage on mount
   useEffect(() => {
@@ -342,6 +344,13 @@ export function BracketProvider({ children }: { children: ReactNode }) {
       if (saveTimer.current) clearTimeout(saveTimer.current);
     };
   }, [state]);
+
+  // Flush save to localStorage on unmount so no picks are lost during navigation
+  useEffect(() => {
+    return () => {
+      saveBracket(latestState.current.matchups, latestState.current.selections);
+    };
+  }, []);
 
   return (
     <BracketContext value={{ state, dispatch }}>

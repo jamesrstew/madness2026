@@ -30,6 +30,50 @@ export async function getTeams(): Promise<Team[]> {
   }, ESPN_TEAMS_TTL);
 }
 
+/**
+ * Fetch an individual team's record from the ESPN team endpoint.
+ * The bulk /teams?limit=400 endpoint no longer returns records,
+ * so we fall back to per-team fetches for the 68 tournament teams.
+ */
+export async function getTeamRecord(
+  teamId: number,
+): Promise<{ wins: number; losses: number }> {
+  return cachedFetch(`espn:record:${teamId}`, async () => {
+    const res = await fetch(`${BASE}/teams/${teamId}`);
+    if (!res.ok) return { wins: 0, losses: 0 };
+    const json = await res.json();
+    const summary: string | undefined =
+      json.team?.record?.items?.[0]?.summary;
+    if (!summary) return { wins: 0, losses: 0 };
+    const [w, l] = summary.split('-');
+    return { wins: Number(w) || 0, losses: Number(l) || 0 };
+  }, ESPN_TEAMS_TTL);
+}
+
+/**
+ * Batch-fetch records for a list of team IDs (10 concurrent).
+ */
+export async function getTeamRecordsBatch(
+  teamIds: number[],
+): Promise<Map<number, { wins: number; losses: number }>> {
+  const result = new Map<number, { wins: number; losses: number }>();
+  const chunks: number[][] = [];
+  for (let i = 0; i < teamIds.length; i += 10) {
+    chunks.push(teamIds.slice(i, i + 10));
+  }
+  for (const chunk of chunks) {
+    const settled = await Promise.allSettled(
+      chunk.map(async (id) => ({ id, record: await getTeamRecord(id) })),
+    );
+    for (const r of settled) {
+      if (r.status === 'fulfilled' && r.value.record.wins + r.value.record.losses > 0) {
+        result.set(r.value.id, r.value.record);
+      }
+    }
+  }
+  return result;
+}
+
 export async function getTeamStats(teamId: number): Promise<TeamStats> {
   return cachedFetch(`espn:stats:${teamId}`, async () => {
     const res = await fetch(`${BASE}/teams/${teamId}/statistics`);
@@ -37,12 +81,15 @@ export async function getTeamStats(teamId: number): Promise<TeamStats> {
     const json = await res.json();
 
     const stats = json.results?.stats?.categories ?? json.categories ?? [];
-    const find = (category: string, name: string): number => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const cat = stats.find((c: any) => c.name === category);
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const stat = cat?.stats?.find((s: any) => s.name === name);
-      return stat ? Number(stat.value) : 0;
+    // Search across ALL categories — ESPN reorganises stats between
+    // "general", "offensive", and "defensive" categories without warning.
+    const find = (name: string): number => {
+      for (const cat of stats) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const stat = (cat as any).stats?.find((s: any) => s.name === name);
+        if (stat) return Number(stat.value) || 0;
+      }
+      return 0;
     };
 
     // Parse record from team summary if available
@@ -58,21 +105,21 @@ export async function getTeamStats(teamId: number): Promise<TeamStats> {
       sos: 0,
       oEFG: 0,
       dEFG: 0,
-      oTOV: find('general', 'turnovers'),
+      oTOV: find('avgTurnovers'),
       dTOV: 0,
-      oORB: find('general', 'offRebounds'),
-      dORB: find('general', 'defRebounds'),
+      oORB: find('avgOffensiveRebounds'),
+      dORB: find('avgDefensiveRebounds'),
       oFTR: 0,
       dFTR: 0,
-      ppg: find('general', 'avgPoints'),
+      ppg: find('avgPoints'),
       oppg: 0,
-      fgPct: find('general', 'fieldGoalPct'),
-      fg3Pct: find('general', 'threePointFieldGoalPct'),
-      ftPct: find('general', 'freeThrowPct'),
-      rpg: find('general', 'avgRebounds'),
-      apg: find('general', 'avgAssists'),
-      spg: find('general', 'avgSteals'),
-      bpg: find('general', 'avgBlocks'),
+      fgPct: find('fieldGoalPct'),
+      fg3Pct: find('threePointFieldGoalPct'),
+      ftPct: find('freeThrowPct'),
+      rpg: find('avgRebounds'),
+      apg: find('avgAssists'),
+      spg: find('avgSteals'),
+      bpg: find('avgBlocks'),
       record: { wins: Number(recordParts[0]), losses: Number(recordParts[1]) },
     } satisfies TeamStats;
   }, ESPN_TEAMS_TTL);

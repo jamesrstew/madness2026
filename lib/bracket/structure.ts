@@ -27,11 +27,11 @@ export const SEED_MATCHUPS: [number, number][] = [
 
 /**
  * Which regions feed into each Final Four semifinal.
- * Convention: East vs West, South vs Midwest.
+ * Convention: West vs Midwest, South vs East.
  */
 const FF_PAIRINGS: [Region, Region][] = [
-  ['East', 'West'],
-  ['South', 'Midwest'],
+  ['West', 'Midwest'],
+  ['South', 'East'],
 ];
 
 /** First Four play-in slots: two 16-seed games and two 11-seed games */

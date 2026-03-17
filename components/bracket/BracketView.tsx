@@ -4,8 +4,8 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Region, Round, Matchup } from '@/lib/types/bracket';
 import { useBracket } from '@/lib/bracket/state';
-import { REGIONS } from '@/lib/bracket/structure';
-import { usePredictions } from '@/lib/bracket/predictions';
+import { REGIONS, getNextMatchupId, getNextMatchupSlot } from '@/lib/bracket/structure';
+import { usePredictions, type PredictionEntry } from '@/lib/bracket/predictions';
 import { useBreakpointColumns } from '@/lib/hooks/useBreakpointColumns';
 import RegionTabs from './RegionTabs';
 import RoundStepper from './RoundStepper';
@@ -80,8 +80,9 @@ export default function BracketView() {
   const [activeTab, setActiveTab] = useState<Tab>('East');
   const [windowStart, setWindowStart] = useState(0);
   const [firstFourOpen, setFirstFourOpen] = useState(true);
+  const [autoFillLoading, setAutoFillLoading] = useState(false);
 
-  const { predictions, fetchForMatchups, isLoading: predictionsLoading, version } = usePredictions();
+  const { predictions, fetchForMatchups, addToCache, isLoading: predictionsLoading, version } = usePredictions();
 
   // Compute rounds for current tab
   const activeRounds = activeTab === 'Final Four' ? FF_ROUNDS : REGION_ROUNDS;
@@ -198,7 +199,104 @@ export default function BracketView() {
     [state.matchups, dispatch],
   );
 
-  const handleAutoFill = () => dispatch({ type: 'AUTO_FILL', predictions });
+  const handleAutoFill = async () => {
+    setAutoFillLoading(true);
+    try {
+      // Simulate the bracket round-by-round, fetching predictions for each
+      // round before picking winners. This ensures later-round matchups
+      // (whose teams depend on earlier picks) get real predictions.
+      const simMatchups = new Map(state.matchups);
+      const simSelections = new Map(state.selections);
+      const fetched = new Map<string, PredictionEntry>();
+      const roundOrder: Round[] = ['FIRST_FOUR', 'R64', 'R32', 'S16', 'E8', 'FF', 'CHAMPIONSHIP'];
+
+      for (const round of roundOrder) {
+        // Collect matchups in this round that still need a pick
+        const undecided: Matchup[] = [];
+        for (const [id, m] of simMatchups) {
+          if (m.round !== round || !m.team1 || !m.team2 || simSelections.has(id)) continue;
+          undecided.push(m);
+        }
+        if (undecided.length === 0) continue;
+
+        // Batch-fetch predictions for any matchups not already cached
+        const toFetch = undecided.filter((m) => {
+          const key = `${m.team1!.id}-${m.team2!.id}`;
+          return !predictions.has(key) && !fetched.has(key);
+        });
+
+        if (toFetch.length > 0) {
+          const { getQuickVerdict } = await import('@/lib/commentary');
+          const results = await Promise.allSettled(
+            toFetch.map(async (m) => {
+              const res = await fetch('/api/predict', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  team1Id: m.team1!.id,
+                  team2Id: m.team2!.id,
+                  round: m.round,
+                  region: m.region,
+                }),
+              });
+              if (!res.ok) throw new Error(`${res.status}`);
+              const data = await res.json();
+              const key = `${m.team1!.id}-${m.team2!.id}`;
+              const favored = data.team1WinPct >= data.team2WinPct ? m.team1! : m.team2!;
+              const other = favored.id === m.team1!.id ? m.team2! : m.team1!;
+              const favoredPct = Math.max(data.team1WinPct, data.team2WinPct) / 100;
+              const entry: PredictionEntry = {
+                team1WinPct: data.team1WinPct,
+                team2WinPct: data.team2WinPct,
+                confidence: data.confidence,
+                verdict: getQuickVerdict(favored.shortName, other.shortName, favoredPct, favored.seed, other.seed),
+              };
+              return { key, entry };
+            }),
+          );
+
+          for (const r of results) {
+            if (r.status === 'fulfilled') {
+              fetched.set(r.value.key, r.value.entry);
+            }
+          }
+        }
+
+        // Pick winners for this round and advance them
+        for (const m of undecided) {
+          const key = `${m.team1!.id}-${m.team2!.id}`;
+          const pred = fetched.get(key) ?? predictions.get(key);
+          const prob1 = pred ? pred.team1WinPct : (m.winProb1 ?? 50);
+          const prob2 = pred ? pred.team2WinPct : (m.winProb2 ?? 50);
+          const winner = prob1 >= prob2 ? m.team1! : m.team2!;
+
+          simMatchups.set(m.id, { ...m, winner });
+          simSelections.set(m.id, winner.id);
+
+          const nextId = getNextMatchupId(m.id);
+          if (nextId) {
+            const next = simMatchups.get(nextId);
+            if (next) {
+              const slot = getNextMatchupSlot(m.id);
+              simMatchups.set(nextId, { ...next, [slot]: winner });
+            }
+          }
+        }
+      }
+
+      // Merge fetched predictions into the display cache
+      addToCache(fetched);
+
+      // Build the complete predictions map (existing cache + newly fetched)
+      const allPreds = new Map(predictions);
+      for (const [k, v] of fetched) allPreds.set(k, v);
+
+      // Dispatch with complete predictions so the reducer gets all the data
+      dispatch({ type: 'AUTO_FILL', predictions: allPreds });
+    } finally {
+      setAutoFillLoading(false);
+    }
+  };
 
   const handleReset = () => {
     const matchups: Matchup[] = [];
@@ -244,9 +342,10 @@ export default function BracketView() {
       <div className="flex flex-wrap items-center gap-3">
         <button
           onClick={handleAutoFill}
-          className="border border-old-gold bg-old-gold/10 px-4 py-2 text-sm font-medium text-old-gold transition-colors hover:bg-old-gold/20"
+          disabled={autoFillLoading}
+          className="border border-old-gold bg-old-gold/10 px-4 py-2 text-sm font-medium text-old-gold transition-colors hover:bg-old-gold/20 disabled:cursor-wait disabled:opacity-60"
         >
-          Auto-fill Bracket
+          {autoFillLoading ? 'Filling bracket\u2026' : 'Auto-fill Bracket'}
         </button>
         <button
           onClick={handleReset}

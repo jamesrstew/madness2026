@@ -2,17 +2,17 @@
  * Unified tournament data provider.
  *
  * Merges real data from ESPN (basic stats, teams, records) and
- * CBBD (advanced efficiency metrics) with a graceful fallback
- * to the mock data when APIs are unavailable.
+ * CBBD (advanced efficiency metrics). Never serves mock/stale data —
+ * fields default to 0 when the upstream API is unavailable.
  */
 import type { Team } from '../types/team';
 import type { TeamStats } from '../types/stats';
 import { TOURNAMENT_SEEDS, TOURNAMENT_TEAM_IDS, DUPLICATE_OVERRIDES } from '../tournament-seeds';
-import { getTeams as getEspnTeams, getTeamStats as getEspnStats } from './espn';
+import { getTeams as getEspnTeams, getTeamStats as getEspnStats, getTeamRecordsBatch } from './espn';
 import { getAdjustedRatings, getSrsRatings, getTeamSeasonStats } from './cbbd';
 import { getCbbdName } from './team-mapping';
 import { cachedFetch } from './cache';
-import { MOCK_TEAMS, MOCK_STATS } from '../mock-data';
+import { MOCK_TEAMS } from '../mock-data';
 
 const TOURNAMENT_TTL = 6 * 60 * 60 * 1000; // 6 hours
 
@@ -23,16 +23,18 @@ const TOURNAMENT_TTL = 6 * 60 * 60 * 1000; // 6 hours
 /**
  * Returns the 64-team tournament field with real ESPN data (names, records,
  * colors, logos) enriched with Selection Committee seed/region assignments.
- * Falls back to MOCK_TEAMS on failure.
+ * Falls back to MOCK_TEAMS only for team identity (name, logo, color) when
+ * ESPN is completely unreachable — records always come from live sources.
  */
 export async function getTournamentTeams(): Promise<Team[]> {
   try {
     return await cachedFetch('tournament:teams', async () => {
-      // Fetch ESPN teams and CBBD season stats in parallel so we can
-      // enrich Team records with real win/loss data.
-      const [espnTeams, seasonStats] = await Promise.all([
+      // Fetch ESPN teams, CBBD season stats, and ESPN individual records
+      // in parallel so we can enrich Team records with real win/loss data.
+      const [espnTeams, seasonStats, espnRecords] = await Promise.all([
         getEspnTeams(),
         getTeamSeasonStats().catch(() => null),
+        getTeamRecordsBatch(TOURNAMENT_TEAM_IDS).catch(() => new Map<number, { wins: number; losses: number }>()),
       ]);
 
       const espnById = new Map(espnTeams.map((t) => [t.id, t]));
@@ -54,19 +56,17 @@ export async function getTournamentTeams(): Promise<Team[]> {
         const override = DUPLICATE_OVERRIDES[dupeKey];
 
         if (espn) {
-          // Resolve record: prefer ESPN (if non-zero) > CBBD season > mock
+          // Resolve record: ESPN bulk (if non-zero) > ESPN individual > CBBD season
           let record = espn.record;
           if (record.wins === 0 && record.losses === 0) {
-            const cbbdName = getCbbdName(id);
-            const season = cbbdName ? seasonByTeam.get(cbbdName.toLowerCase()) : undefined;
-            if (season && season.wins + season.losses > 0) {
-              record = { wins: season.wins, losses: season.losses };
+            const indRecord = espnRecords.get(id);
+            if (indRecord && indRecord.wins + indRecord.losses > 0) {
+              record = indRecord;
             } else {
-              const mock = MOCK_TEAMS.find(
-                (t) => t.id === id && t.region === seed.region,
-              );
-              if (mock && mock.record.wins + mock.record.losses > 0) {
-                record = mock.record;
+              const cbbdName = getCbbdName(id);
+              const season = cbbdName ? seasonByTeam.get(cbbdName.toLowerCase()) : undefined;
+              if (season && season.wins + season.losses > 0) {
+                record = { wins: season.wins, losses: season.losses };
               }
             }
           }
@@ -81,11 +81,18 @@ export async function getTournamentTeams(): Promise<Team[]> {
             record,
           });
         } else {
-          // ESPN didn't return this team — use mock entry as fallback
+          // ESPN didn't return this team — use mock entry for identity only
           const mock = MOCK_TEAMS.find(
             (t) => t.id === id && t.region === seed.region,
           );
-          if (mock) teams.push(mock);
+          if (mock) {
+            // Override the mock record with ESPN individual if available
+            const indRecord = espnRecords.get(id);
+            const record = indRecord && indRecord.wins + indRecord.losses > 0
+              ? indRecord
+              : { wins: 0, losses: 0 };
+            teams.push({ ...mock, record });
+          }
         }
       }
 
@@ -103,11 +110,11 @@ export async function getTournamentTeams(): Promise<Team[]> {
 
 /**
  * Returns merged stats for a single team: CBBD advanced metrics +
- * ESPN basic stats. Falls back to MOCK_STATS for any missing values.
+ * ESPN basic stats. Returns zeroed stats when APIs are unavailable.
  */
 export async function getTeamStatsReal(teamId: number): Promise<TeamStats> {
   const allStats = await getAllTournamentStats();
-  return allStats.get(teamId) ?? MOCK_STATS.get(teamId) ?? fallbackStats();
+  return allStats.get(teamId) ?? fallbackStats();
 }
 
 // ---------------------------------------------------------------------------
@@ -124,11 +131,13 @@ export async function getTeamStatsReal(teamId: number): Promise<TeamStats> {
 export async function getAllTournamentStats(): Promise<Map<number, TeamStats>> {
   try {
     return await cachedFetch('tournament:allStats', async () => {
-      // Fetch all CBBD data in parallel
-      const [adjRatings, srsRatings, seasonStats] = await Promise.all([
-        getAdjustedRatings(),
-        getSrsRatings(),
-        getTeamSeasonStats(),
+      // Fetch all CBBD data in parallel — each call isolated so a CBBD
+      // outage (e.g. quota exceeded) doesn't prevent ESPN stats from loading.
+      const [adjRatings, srsRatings, seasonStats, espnRecords] = await Promise.all([
+        getAdjustedRatings().catch(() => null),
+        getSrsRatings().catch(() => null),
+        getTeamSeasonStats().catch(() => null),
+        getTeamRecordsBatch(TOURNAMENT_TEAM_IDS).catch(() => new Map<number, { wins: number; losses: number }>()),
       ]);
 
       // Build lookup maps keyed by CBBD team name (lowercase)
@@ -164,7 +173,7 @@ export async function getAllTournamentStats(): Promise<Map<number, TeamStats>> {
 
       const result = new Map<number, TeamStats>();
 
-      // For each tournament team, merge CBBD + ESPN + mock
+      // For each tournament team, merge CBBD + ESPN (no mock fallbacks)
       for (const id of TOURNAMENT_TEAM_IDS) {
         const cbbdName = getCbbdName(id);
         const key = cbbdName?.toLowerCase();
@@ -172,16 +181,27 @@ export async function getAllTournamentStats(): Promise<Map<number, TeamStats>> {
         const adj = key ? adjByTeam.get(key) : undefined;
         const srs = key ? srsByTeam.get(key) : undefined;
         const season = key ? seasonByTeam.get(key) : undefined;
-        const mock = MOCK_STATS.get(id);
 
         // Use pre-fetched ESPN stats
         const espn = espnStatsMap.get(id) ?? null;
 
         const games = season?.games || 0;
 
-        // Merge: prefer CBBD > ESPN > mock > 0
-        const mergedAdjOE = adj?.adjustedOffense ?? mock?.adjOE ?? 0;
-        const mergedAdjDE = adj?.adjustedDefense ?? mock?.adjDE ?? 0;
+        const mergedAdjOE = adj?.adjustedOffense ?? 0;
+        const mergedAdjDE = adj?.adjustedDefense ?? 0;
+
+        // Resolve record: ESPN individual > CBBD season > ESPN stats endpoint
+        const indRecord = espnRecords.get(id);
+        let record: { wins: number; losses: number };
+        if (indRecord && indRecord.wins + indRecord.losses > 0) {
+          record = indRecord;
+        } else if (season && season.wins + season.losses > 0) {
+          record = { wins: season.wins, losses: season.losses };
+        } else if (espn?.record && espn.record.wins + espn.record.losses > 0) {
+          record = espn.record;
+        } else {
+          record = { wins: 0, losses: 0 };
+        }
 
         const stats: TeamStats = {
           // Advanced metrics from CBBD adjusted ratings
@@ -190,105 +210,79 @@ export async function getAllTournamentStats(): Promise<Map<number, TeamStats>> {
           adjEM:
             adj != null && adj.adjustedOffense != null && adj.adjustedDefense != null
               ? Math.round((adj.adjustedOffense - adj.adjustedDefense) * 10) / 10
-              : mock?.adjEM ??
-                (mergedAdjOE && mergedAdjDE
-                  ? Math.round((mergedAdjOE - mergedAdjDE) * 10) / 10
-                  : 0),
-          tempo: adj?.adjustedTempo ?? mock?.tempo ?? 0,
-          sos: srs?.sos ?? mock?.sos ?? 0,
+              : mergedAdjOE && mergedAdjDE
+                ? Math.round((mergedAdjOE - mergedAdjDE) * 10) / 10
+                : 0,
+          tempo: adj?.adjustedTempo ?? 0,
+          sos: srs?.sos ?? 0,
 
           // Four factors — derive from CBBD season stats if available
-          oEFG: deriveEfg(season) ?? mock?.oEFG ?? 0,
-          dEFG: mock?.dEFG ?? 0, // CBBD doesn't provide opponent shooting splits easily
+          oEFG: deriveEfg(season) ?? 0,
+          dEFG: 0,
           oTOV:
             season && games > 0
               ? round3(season.turnovers / games)
-              : espn?.oTOV ?? mock?.oTOV ?? 0,
-          dTOV: mock?.dTOV ?? 0,
+              : espn?.oTOV ?? 0,
+          dTOV: 0,
           oORB:
             season && games > 0
               ? round3(season.offensiveRebounds / games)
-              : espn?.oORB ?? mock?.oORB ?? 0,
+              : espn?.oORB ?? 0,
           dORB:
             season && games > 0
               ? round3(season.defensiveRebounds / games)
-              : espn?.dORB ?? mock?.dORB ?? 0,
-          oFTR: deriveFtr(season) ?? mock?.oFTR ?? 0,
-          dFTR: mock?.dFTR ?? 0,
+              : espn?.dORB ?? 0,
+          oFTR: deriveFtr(season) ?? 0,
+          dFTR: 0,
 
-          // Basic per-game stats: prefer ESPN (real-time) > CBBD season > mock
+          // Basic per-game stats: prefer ESPN (real-time) > CBBD season > 0
           ppg:
-            (espn?.ppg ||
+            espn?.ppg ||
             (season && games > 0 ? round1(season.points / games) : 0) ||
-            mock?.ppg) ??
             0,
           oppg:
-            ((season && games > 0
+            (season && games > 0
               ? round1(season.opponentPoints / games)
               : 0) ||
-            mock?.oppg) ??
             0,
           fgPct:
-            (espn?.fgPct ||
+            espn?.fgPct ||
             (season && season.fieldGoalsAttempted > 0
-              ? round3(
-                  season.fieldGoalsMade / season.fieldGoalsAttempted,
-                )
+              ? round3(season.fieldGoalsMade / season.fieldGoalsAttempted)
               : 0) ||
-            mock?.fgPct) ??
             0,
           fg3Pct:
-            (espn?.fg3Pct ||
+            espn?.fg3Pct ||
             (season && season.threePointFieldGoalsAttempted > 0
-              ? round3(
-                  season.threePointFieldGoalsMade /
-                    season.threePointFieldGoalsAttempted,
-                )
+              ? round3(season.threePointFieldGoalsMade / season.threePointFieldGoalsAttempted)
               : 0) ||
-            mock?.fg3Pct) ??
             0,
           ftPct:
-            (espn?.ftPct ||
+            espn?.ftPct ||
             (season && season.freeThrowsAttempted > 0
-              ? round3(
-                  season.freeThrowsMade / season.freeThrowsAttempted,
-                )
+              ? round3(season.freeThrowsMade / season.freeThrowsAttempted)
               : 0) ||
-            mock?.ftPct) ??
             0,
           rpg:
-            (espn?.rpg ||
+            espn?.rpg ||
             (season && games > 0
-              ? round1(
-                  (season.offensiveRebounds + season.defensiveRebounds) /
-                    games,
-                )
+              ? round1((season.offensiveRebounds + season.defensiveRebounds) / games)
               : 0) ||
-            mock?.rpg) ??
             0,
           apg:
-            (espn?.apg ||
+            espn?.apg ||
             (season && games > 0 ? round1(season.assists / games) : 0) ||
-            mock?.apg) ??
             0,
           spg:
-            (espn?.spg ||
+            espn?.spg ||
             (season && games > 0 ? round1(season.steals / games) : 0) ||
-            mock?.spg) ??
             0,
           bpg:
-            (espn?.bpg ||
+            espn?.bpg ||
             (season && games > 0 ? round1(season.blocks / games) : 0) ||
-            mock?.bpg) ??
             0,
 
-          // Record: prefer CBBD season > ESPN > mock
-          record:
-            season && season.wins + season.losses > 0
-              ? { wins: season.wins, losses: season.losses }
-              : espn?.record?.wins
-                ? espn.record
-                : mock?.record ?? { wins: 0, losses: 0 },
+          record,
         };
 
         result.set(id, stats);
@@ -297,8 +291,8 @@ export async function getAllTournamentStats(): Promise<Map<number, TeamStats>> {
       return result;
     }, TOURNAMENT_TTL);
   } catch (err) {
-    console.warn('[tournament] Failed to fetch stats, using mock:', err);
-    return MOCK_STATS;
+    console.warn('[tournament] Stats fetch failed completely:', err);
+    return new Map();
   }
 }
 
