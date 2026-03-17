@@ -3,6 +3,9 @@ import type { Matchup } from '@/lib/types/bracket';
 // Bump version when team IDs or bracket structure changes
 const STORAGE_KEY = 'golden_bracket_v2';
 
+const TEAMS_REFRESHED_KEY = 'golden_bracket_teams_refreshed';
+const TEAMS_REFRESH_INTERVAL = 60 * 60 * 1000; // 1 hour
+
 interface SerializedBracketState {
   matchups: [string, Matchup][];
   selections: [string, number][];
@@ -45,4 +48,25 @@ export function loadBracket(): {
 export function clearBracket(): void {
   if (typeof window === 'undefined') return;
   localStorage.removeItem(STORAGE_KEY);
+}
+
+/** Returns true if team data hasn't been refreshed within the refresh interval. */
+export function teamsNeedRefresh(): boolean {
+  if (typeof window === 'undefined') return false;
+  try {
+    const ts = localStorage.getItem(TEAMS_REFRESHED_KEY);
+    if (!ts) return true;
+    return Date.now() - Number(ts) > TEAMS_REFRESH_INTERVAL;
+  } catch {
+    return true;
+  }
+}
+
+export function markTeamsRefreshed(): void {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(TEAMS_REFRESHED_KEY, String(Date.now()));
+  } catch {
+    // silently fail
+  }
 }
