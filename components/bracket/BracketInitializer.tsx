@@ -9,17 +9,35 @@ import type { Team } from '@/lib/types/team';
 /**
  * Initializes the bracket with real tournament data (falling back to mock)
  * if it hasn't been loaded from localStorage yet.
+ *
+ * When bracket data IS loaded from localStorage, fetches fresh team data
+ * anyway and dispatches REFRESH_TEAMS to update records/stats in-place.
+ *
  * Renders nothing — purely a side-effect component.
  */
 export default function BracketInitializer() {
   const { state, dispatch } = useBracket();
   const skipResetRef = useRef(false);
+  const refreshedRef = useRef(false);
 
   useEffect(() => {
-    // If data was already loaded (e.g. from localStorage), mark the
-    // in-flight fetch as stale so it won't overwrite the loaded state.
     if (state.matchups.size > 0) {
+      // Bracket loaded from localStorage — don't reset, but refresh team data
       skipResetRef.current = true;
+
+      if (!refreshedRef.current) {
+        refreshedRef.current = true;
+        fetch('/api/teams')
+          .then((res) => (res.ok ? res.json() : Promise.reject(res.status)))
+          .then((data: Team[]) => {
+            if (!Array.isArray(data) || data.length === 0) return;
+            const teamsById = new Map(data.map((t) => [t.id, t]));
+            dispatch({ type: 'REFRESH_TEAMS', teams: teamsById });
+          })
+          .catch(() => {
+            // Silently fail — stale team data is better than no bracket
+          });
+      }
       return;
     }
 

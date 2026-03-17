@@ -29,7 +29,8 @@ type BracketAction =
   | { type: 'LOAD_BRACKET'; matchups: Map<string, Matchup>; selections: Map<string, number> }
   | { type: 'AUTO_FILL'; predictions?: Map<string, { team1WinPct: number; team2WinPct: number }> }
   | { type: 'APPLY_URL_SELECTIONS'; urlSelections: Map<string, 'team1' | 'team2'> }
-  | { type: 'SET_PREDICTIONS'; predictions: Map<string, { team1WinPct: number; team2WinPct: number }> };
+  | { type: 'SET_PREDICTIONS'; predictions: Map<string, { team1WinPct: number; team2WinPct: number }> }
+  | { type: 'REFRESH_TEAMS'; teams: Map<number, Team> };
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -267,6 +268,34 @@ function bracketReducer(state: BracketState, action: BracketAction): BracketStat
           }
           break;
         }
+      }
+
+      if (!changed) return state;
+      return { ...state, matchups };
+    }
+
+    case 'REFRESH_TEAMS': {
+      // Update team objects in-place with fresh data (e.g. records)
+      // without touching selections or winners.
+      const teamsById = action.teams;
+      const matchups = new Map(state.matchups);
+      let changed = false;
+
+      for (const [id, matchup] of matchups) {
+        let updated = matchup;
+        if (matchup.team1) {
+          const fresh = teamsById.get(matchup.team1.id);
+          if (fresh) { updated = { ...updated, team1: fresh }; changed = true; }
+        }
+        if (matchup.team2) {
+          const fresh = teamsById.get(matchup.team2.id);
+          if (fresh) { updated = { ...updated, team2: fresh }; changed = true; }
+        }
+        if (matchup.winner) {
+          const fresh = teamsById.get(matchup.winner.id);
+          if (fresh) { updated = { ...updated, winner: fresh }; changed = true; }
+        }
+        if (updated !== matchup) matchups.set(id, updated);
       }
 
       if (!changed) return state;
