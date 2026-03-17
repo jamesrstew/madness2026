@@ -255,16 +255,18 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Add matchup-specific factors
+    // Add matchup-specific factors — use display values (underlying stats)
+    // when available so the UI shows meaningful numbers instead of tiny
+    // probability adjustments.
     for (const mf of matchupFactors) {
-      const t1 = mf.team1Impact ?? 0;
-      const t2 = mf.team2Impact ?? 0;
+      const d1 = mf.team1Display ?? mf.team1Impact ?? 0;
+      const d2 = mf.team2Display ?? mf.team2Impact ?? 0;
       factors.push({
         name: mf.name,
-        team1Value: safeRound(t1, 3),
-        team2Value: safeRound(t2, 3),
+        team1Value: safeRound(d1, 1),
+        team2Value: safeRound(d2, 1),
         weight: 0.05,
-        team1Edge: safeRound(t1 - t2, 3),
+        team1Edge: safeRound(d1 - d2, 1),
       });
     }
 

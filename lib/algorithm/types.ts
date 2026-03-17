@@ -36,6 +36,9 @@ export interface MatchupFactor {
   description: string;
   team1Impact: number;
   team2Impact: number;
+  /** Optional display values (underlying stats) — used instead of tiny probability impacts in the UI. */
+  team1Display?: number;
+  team2Display?: number;
 }
 
 export interface SimulationResult {

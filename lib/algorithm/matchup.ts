@@ -24,6 +24,8 @@ export function calculateMatchupAdjustment(
       description: 'Fast team vs slow team — fast team style dominates',
       team1Impact: TEMPO_ADJ,
       team2Impact: -TEMPO_ADJ,
+      team1Display: team1Stats.tempo,
+      team2Display: team2Stats.tempo,
     });
   } else if (team2Stats.tempo > FAST_THRESHOLD && team1Stats.tempo < SLOW_THRESHOLD) {
     team2Adj += TEMPO_ADJ;
@@ -33,12 +35,14 @@ export function calculateMatchupAdjustment(
       description: 'Fast team vs slow team — fast team style dominates',
       team1Impact: -TEMPO_ADJ,
       team2Impact: TEMPO_ADJ,
+      team1Display: team1Stats.tempo,
+      team2Display: team2Stats.tempo,
     });
   }
 
-  // Rebounding edge: ORB% difference > 5%
+  // Rebounding edge: offensive rebounds per game difference > 2
   const orbDiff = team1Stats.oORB - team2Stats.oORB;
-  const ORB_THRESHOLD = 0.05;
+  const ORB_THRESHOLD = 2;
   const ORB_ADJ = 0.015;
 
   if (Math.abs(orbDiff) > ORB_THRESHOLD) {
@@ -50,12 +54,14 @@ export function calculateMatchupAdjustment(
       description: `${sign > 0 ? 'Team 1' : 'Team 2'} has significant offensive rebounding advantage`,
       team1Impact: sign * ORB_ADJ,
       team2Impact: -sign * ORB_ADJ,
+      team1Display: team1Stats.oORB,
+      team2Display: team2Stats.oORB,
     });
   }
 
-  // Turnover battle: TOV% difference > 3%
-  const tovDiff = team2Stats.oTOV - team1Stats.oTOV; // lower TOV% is better for offense
-  const TOV_THRESHOLD = 0.03;
+  // Turnover battle: turnovers per game difference > 2 (lower is better)
+  const tovDiff = team2Stats.oTOV - team1Stats.oTOV; // positive = team1 is better (fewer TOVs)
+  const TOV_THRESHOLD = 2;
   const TOV_ADJ = 0.015;
 
   if (Math.abs(tovDiff) > TOV_THRESHOLD) {
@@ -67,24 +73,17 @@ export function calculateMatchupAdjustment(
       description: `${sign > 0 ? 'Team 1' : 'Team 2'} takes better care of the ball`,
       team1Impact: sign * TOV_ADJ,
       team2Impact: -sign * TOV_ADJ,
+      // Display TOV/game — lower is better, so show the raw values
+      team1Display: team1Stats.oTOV,
+      team2Display: team2Stats.oTOV,
     });
   }
 
   // 3PT dependency volatility penalty
+  // Teams with high 3PT% relative to overall shooting are 3-dependent
   const THREE_DEP_THRESHOLD = 0.40;
   const THREE_PENALTY = 0.01;
 
-  if (team1Stats.fg3Pct > 0) {
-    // Use oEFG as proxy — check if 3PA/FGA would be > 0.40
-    // We approximate 3-point dependency from fg3Pct and fgPct
-    // If team's 3pt attempts are heavy, apply penalty
-    // Since we don't have 3PA/FGA directly, use a threshold on fg3Pct as proxy
-    // Teams shooting > 36% from 3 at high volume tend to be 3-dependent
-  }
-
-  // We need 3PA/FGA ratio — approximate from available stats
-  // For now, check if team relies heavily on 3s using available data
-  // A team with high fg3Pct and low overall fgPct is likely 3-dependent
   const team1ThreeDep = team1Stats.fg3Pct > 0 && team1Stats.fgPct > 0
     ? (team1Stats.oEFG - team1Stats.fgPct) / (0.5 * team1Stats.fg3Pct || 1)
     : 0;
@@ -99,6 +98,8 @@ export function calculateMatchupAdjustment(
       description: 'Team 1 is heavily 3-point dependent — tournament volatility penalty',
       team1Impact: -THREE_PENALTY,
       team2Impact: 0,
+      team1Display: team1Stats.fg3Pct,
+      team2Display: team2Stats.fg3Pct,
     });
   }
   if (team2ThreeDep > THREE_DEP_THRESHOLD) {
@@ -108,6 +109,8 @@ export function calculateMatchupAdjustment(
       description: 'Team 2 is heavily 3-point dependent — tournament volatility penalty',
       team1Impact: 0,
       team2Impact: -THREE_PENALTY,
+      team1Display: team1Stats.fg3Pct,
+      team2Display: team2Stats.fg3Pct,
     });
   }
 
