@@ -1,19 +1,78 @@
-import { cachedFetch, CBBD_TTL } from './cache';
+/**
+ * CBBD (College Basketball Data) provider.
+ *
+ * Reads from a pre-fetched static cache (lib/data/cbbd-cache.json) to avoid
+ * API quota issues and network dependencies. The cache was pulled from
+ * the CBBD API on 2026-03-17 and contains adjusted ratings, SRS ratings,
+ * and full season stats for all D1 teams.
+ *
+ * To refresh: run `node scripts/refresh-cbbd.js` (or re-fetch manually).
+ */
 
-const BASE = 'https://api.collegebasketballdata.com';
+import cbbdCache from '../data/cbbd-cache.json';
 
-/** Response shape from CBBD /ratings/adjusted endpoint */
+interface CbbdCacheTeam {
+  team: string;
+  conference?: string;
+  adjOE?: number;
+  adjDE?: number;
+  adjEM?: number;
+  srsRating?: number;
+  games?: number;
+  wins?: number;
+  losses?: number;
+  pace?: number;
+  assists?: number;
+  blocks?: number;
+  steals?: number;
+  possessions?: number;
+  turnovers?: number;
+  fgMade?: number;
+  fgAttempted?: number;
+  fg3Made?: number;
+  fg3Attempted?: number;
+  ftMade?: number;
+  ftAttempted?: number;
+  offReb?: number;
+  defReb?: number;
+  totalReb?: number;
+  points?: number;
+  oppPoints?: number;
+  oppOffReb?: number;
+  oppTurnovers?: number;
+  oppFgMade?: number;
+  oppFgAttempted?: number;
+  oppFg3Made?: number;
+  oppFtAttempted?: number;
+}
+
+// Build lookup once at import time
+const teamsByName = new Map<string, CbbdCacheTeam>();
+for (const [key, value] of Object.entries(
+  (cbbdCache as { teams: Record<string, CbbdCacheTeam> }).teams,
+)) {
+  teamsByName.set(key.toLowerCase(), value as CbbdCacheTeam);
+}
+
+/** Response shapes expected by tournament.ts */
 export interface CbbdAdjustedRating {
   team: string;
   conference: string;
   year: number;
-  rating: number;          // overall SRS-style rating
-  adjustedOffense: number; // adjOE (points per 100 possessions)
-  adjustedDefense: number; // adjDE (points per 100 possessions)
-  adjustedTempo: number;   // possessions per 40 minutes
+  adjustedOffense: number;
+  adjustedDefense: number;
+  adjustedTempo: number;
 }
 
-/** Response shape from CBBD /stats/season endpoint */
+export interface CbbdSrsRating {
+  team: string;
+  conference: string;
+  year: number;
+  rating: number;
+  ranking: number;
+  sos: number;
+}
+
 export interface CbbdSeasonStats {
   team: string;
   conference: string;
@@ -21,7 +80,6 @@ export interface CbbdSeasonStats {
   games: number;
   wins: number;
   losses: number;
-  // offensive
   points: number;
   fieldGoalsMade: number;
   fieldGoalsAttempted: number;
@@ -30,91 +88,86 @@ export interface CbbdSeasonStats {
   freeThrowsMade: number;
   freeThrowsAttempted: number;
   offensiveRebounds: number;
+  defensiveRebounds: number;
   turnovers: number;
   assists: number;
-  // defensive
-  opponentPoints: number;
-  defensiveRebounds: number;
   steals: number;
   blocks: number;
   personalFouls: number;
-  // possessions & tempo
+  opponentPoints: number;
   possessions: number;
-  // derived fields may vary; we compute what we need
 }
 
-/** Response shape from CBBD /ratings/srs endpoint */
-export interface CbbdSrsRating {
-  team: string;
-  conference: string;
-  year: number;
-  rating: number;            // SRS rating
-  ranking: number;
-  sos: number;               // strength of schedule
-}
-
-function hasApiKey(): boolean {
-  return !!process.env.CBBD_API_KEY;
-}
-
-function headers(): HeadersInit {
-  return {
-    Authorization: `Bearer ${process.env.CBBD_API_KEY}`,
-    Accept: 'application/json',
-  };
-}
-
-async function cbbdFetch<T>(path: string, key: string): Promise<T | null> {
-  if (!hasApiKey()) return null;
-  try {
-    return await cachedFetch(
-      key,
-      async () => {
-        const res = await fetch(`${BASE}${path}`, { headers: headers() });
-        if (!res.ok) throw new Error(`CBBD request failed: ${res.status} ${path}`);
-        return res.json() as Promise<T>;
-      },
-      CBBD_TTL,
-    );
-  } catch (err) {
-    console.warn(`[CBBD] Failed to fetch ${path}:`, err);
-    return null;
+/**
+ * Returns adjusted ratings from the static cache, mapped to the old interface
+ * that tournament.ts expects.
+ */
+export async function getAdjustedRatings(): Promise<CbbdAdjustedRating[]> {
+  const result: CbbdAdjustedRating[] = [];
+  for (const [, t] of teamsByName) {
+    if (t.adjOE == null) continue;
+    result.push({
+      team: t.team,
+      conference: t.conference ?? '',
+      year: 2026,
+      adjustedOffense: t.adjOE ?? 0,
+      adjustedDefense: t.adjDE ?? 0,
+      adjustedTempo: t.pace ?? 0,
+    });
   }
+  return result;
 }
 
-export async function getAdjustedRatings(
-  year = 2026,
-): Promise<CbbdAdjustedRating[] | null> {
-  return cbbdFetch<CbbdAdjustedRating[]>(
-    `/ratings/adjusted?year=${year}`,
-    `cbbd:adjusted:${year}`,
-  );
+/**
+ * Returns SRS ratings from the static cache.
+ */
+export async function getSrsRatings(): Promise<CbbdSrsRating[]> {
+  const result: CbbdSrsRating[] = [];
+  for (const [, t] of teamsByName) {
+    if (t.srsRating == null) continue;
+    result.push({
+      team: t.team,
+      conference: t.conference ?? '',
+      year: 2026,
+      rating: t.srsRating,
+      ranking: 0,
+      sos: t.srsRating, // SRS rating approximates SOS
+    });
+  }
+  return result;
 }
 
-export async function getSrsRatings(
-  year = 2026,
-): Promise<CbbdSrsRating[] | null> {
-  return cbbdFetch<CbbdSrsRating[]>(
-    `/ratings/srs?year=${year}`,
-    `cbbd:srs:${year}`,
-  );
-}
-
-export async function getTeamSeasonStats(
-  year = 2026,
-): Promise<CbbdSeasonStats[] | null> {
-  return cbbdFetch<CbbdSeasonStats[]>(
-    `/stats/season?year=${year}`,
-    `cbbd:seasonStats:${year}`,
-  );
-}
-
-export async function getTeamGames(
-  team: string,
-  year = 2026,
-): Promise<unknown> {
-  return cbbdFetch(
-    `/games?year=${year}&team=${encodeURIComponent(team)}`,
-    `cbbd:games:${team}:${year}`,
-  );
+/**
+ * Returns season stats from the static cache.
+ */
+export async function getTeamSeasonStats(): Promise<CbbdSeasonStats[]> {
+  const result: CbbdSeasonStats[] = [];
+  for (const [, t] of teamsByName) {
+    if (!t.games) continue;
+    result.push({
+      team: t.team,
+      conference: t.conference ?? '',
+      year: 2026,
+      games: t.games ?? 0,
+      wins: t.wins ?? 0,
+      losses: t.losses ?? 0,
+      points: t.points ?? 0,
+      fieldGoalsMade: t.fgMade ?? 0,
+      fieldGoalsAttempted: t.fgAttempted ?? 0,
+      threePointFieldGoalsMade: t.fg3Made ?? 0,
+      threePointFieldGoalsAttempted: t.fg3Attempted ?? 0,
+      freeThrowsMade: t.ftMade ?? 0,
+      freeThrowsAttempted: t.ftAttempted ?? 0,
+      offensiveRebounds: t.offReb ?? 0,
+      defensiveRebounds: t.defReb ?? 0,
+      turnovers: t.turnovers ?? 0,
+      assists: t.assists ?? 0,
+      steals: t.steals ?? 0,
+      blocks: t.blocks ?? 0,
+      personalFouls: 0,
+      opponentPoints: t.oppPoints ?? 0,
+      possessions: t.possessions ?? 0,
+    });
+  }
+  return result;
 }
