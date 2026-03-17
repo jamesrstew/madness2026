@@ -38,6 +38,8 @@ interface FactorBarProps {
   /** Normalized edge: negative = team1 advantage, positive = team2 advantage */
   edge: number;
   weight: number;
+  team1Name?: string;
+  team2Name?: string;
   team1Color?: string;
   team2Color?: string;
 }
@@ -48,6 +50,8 @@ export default function FactorBar({
   team2Value: rawTeam2Value,
   edge,
   weight,
+  team1Name,
+  team2Name,
   team1Color = '#2D6A3F',
   team2Color = '#8B6914',
 }: FactorBarProps) {
@@ -104,10 +108,15 @@ export default function FactorBar({
         </motion.div>
       </div>
 
-      {/* Edge indicator */}
-      <div className={`mt-1 font-mono text-xs text-ink-faint ${advantageLabel === 'right' ? 'text-right' : 'text-left'}`}>
-        +{Math.abs(team1Value - team2Value).toFixed(1)} edge
-      </div>
+      {/* Edge indicator — positioned at the bar convergence point */}
+      {Math.abs(team1Value - team2Value) > 0.05 && (
+        <div
+          className="mt-1 font-mono text-[10px] sm:text-xs text-ink-faint"
+          style={{ textAlign: 'center', paddingLeft: isTeam1Advantage ? `${Math.max(team1Pct - 15, 0)}%` : undefined, paddingRight: !isTeam1Advantage ? `${Math.max(team2Pct - 15, 0)}%` : undefined }}
+        >
+          {isTeam1Advantage ? team1Name : team2Name} +{Math.abs(team1Value - team2Value).toFixed(1)}
+        </div>
+      )}
     </div>
   );
 }

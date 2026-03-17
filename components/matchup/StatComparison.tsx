@@ -103,7 +103,7 @@ export default function StatComparison({
                     team1Better ? 'font-semibold text-ink' : 'font-normal text-ink-muted'
                   }`}
                 >
-                  {team1Better && <span className="text-sage text-[10px] mr-0.5">{'\u25B2'}</span>}
+                  {team1Better && <span className="text-sage text-[10px] mr-0.5">{'\u2713'}</span>}
                   {typeof v1 === 'number' ? v1.toFixed(1) : v1}
                 </span>
 
@@ -151,7 +151,7 @@ export default function StatComparison({
                   }`}
                 >
                   {typeof v2 === 'number' ? v2.toFixed(1) : v2}
-                  {team2Better && <span className="text-sage text-[10px] ml-0.5">{'\u25B2'}</span>}
+                  {team2Better && <span className="text-sage text-[10px] ml-0.5">{'\u2713'}</span>}
                 </span>
               </button>
 

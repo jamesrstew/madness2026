@@ -71,6 +71,8 @@ export default function AlgorithmBreakdown({
                 team2Value={factor.team2Value}
                 edge={factor.team1Edge}
                 weight={factor.weight}
+                team1Name={team1Name}
+                team2Name={team2Name}
                 team1Color={team1Color}
                 team2Color={team2Color}
               />

@@ -134,7 +134,9 @@ function parseScore(score: any): number {
 
 export async function getTeamSchedule(teamId: number): Promise<GameResult[]> {
   return cachedFetch(`espn:schedule:${teamId}`, async () => {
-    const res = await fetch(`${BASE}/teams/${teamId}/schedule`);
+    // seasontype=2 returns the full regular season schedule (not just upcoming);
+    // without it, ESPN rotates past games off once the tournament starts.
+    const res = await fetch(`${BASE}/teams/${teamId}/schedule?seasontype=2`);
     if (!res.ok) throw new Error(`ESPN schedule request failed: ${res.status}`);
     const json = await res.json();
 
