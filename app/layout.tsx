@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Source_Serif_4, Playfair_Display, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
+import { Analytics } from "@vercel/analytics/next";
 import Header from "@/components/ui/Header";
 import Footer from "@/components/ui/Footer";
 
@@ -58,6 +59,7 @@ export default function RootLayout({
         <Header />
         <main className="court-bg min-h-screen">{children}</main>
         <Footer />
+        <Analytics />
       </body>
     </html>
   );
