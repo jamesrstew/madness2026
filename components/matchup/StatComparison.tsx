@@ -94,22 +94,23 @@ export default function StatComparison({
             <div key={key}>
               <button
                 type="button"
-                className="flex items-center gap-3 w-full text-left cursor-pointer hover:bg-ink/[0.02] rounded transition-colors -mx-1 px-1"
+                className="w-full text-left cursor-pointer hover:bg-ink/[0.02] rounded transition-colors -mx-1 px-1"
                 onClick={() => setExpandedKey(isExpanded ? null : key)}
                 aria-expanded={isExpanded}
               >
-                <span
-                  className={`w-12 sm:w-16 text-right font-mono text-sm sm:text-base ${
-                    team1Better ? 'font-semibold text-ink' : 'font-normal text-ink-muted'
-                  }`}
-                >
-                  {team1Better && <span className="text-sage text-[10px] mr-0.5">{'\u2713'}</span>}
-                  {typeof v1 === 'number' ? v1.toFixed(1) : v1}
-                </span>
+                {/* Numbers + bar row — vertically centered */}
+                <div className="flex items-center gap-3">
+                  <span
+                    className={`w-12 sm:w-16 text-right font-mono text-sm sm:text-base ${
+                      team1Better ? 'font-semibold text-ink' : 'font-normal text-ink-muted'
+                    }`}
+                  >
+                    {team1Better && <span className="text-sage text-[10px] mr-0.5">{'\u2713'}</span>}
+                    {typeof v1 === 'number' ? v1.toFixed(1) : v1}
+                  </span>
 
-                {/* Bar visualization */}
-                <div className="flex-1">
-                  <div className="relative flex h-3 rounded-sm overflow-hidden bg-ink/[0.06]">
+                  {/* Bar visualization */}
+                  <div className="relative flex-1 flex h-3 rounded-sm overflow-hidden bg-ink/[0.06]">
                     <motion.div
                       className={`h-full ${
                         !team1Color ? (team1Better ? 'bg-sage' : 'bg-crimson') : ''
@@ -135,24 +136,26 @@ export default function StatComparison({
                       transition={{ duration: 0.6, ease: 'easeOut' }}
                     />
                   </div>
-                  <div className="flex items-center justify-center gap-1 mt-1">
-                    <span className="text-center text-xs text-ink-faint">
-                      {label}
-                    </span>
-                    <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-ink/10 text-[8px] text-ink-faint leading-none">
-                      ?
-                    </span>
-                  </div>
+
+                  <span
+                    className={`w-12 sm:w-16 text-left font-mono text-sm sm:text-base ${
+                      team2Better ? 'font-semibold text-ink' : 'font-normal text-ink-muted'
+                    }`}
+                  >
+                    {typeof v2 === 'number' ? v2.toFixed(1) : v2}
+                    {team2Better && <span className="text-sage text-[10px] ml-0.5">{'\u2713'}</span>}
+                  </span>
                 </div>
 
-                <span
-                  className={`w-12 sm:w-16 text-left font-mono text-sm sm:text-base ${
-                    team2Better ? 'font-semibold text-ink' : 'font-normal text-ink-muted'
-                  }`}
-                >
-                  {typeof v2 === 'number' ? v2.toFixed(1) : v2}
-                  {team2Better && <span className="text-sage text-[10px] ml-0.5">{'\u2713'}</span>}
-                </span>
+                {/* Label row — centered below */}
+                <div className="flex items-center justify-center gap-1 mt-1">
+                  <span className="text-center text-xs text-ink-faint">
+                    {label}
+                  </span>
+                  <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full border border-ink/10 text-[8px] text-ink-faint leading-none">
+                    ?
+                  </span>
+                </div>
               </button>
 
               {/* Expandable description + insight */}

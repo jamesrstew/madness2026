@@ -108,12 +108,9 @@ export default function FactorBar({
         </motion.div>
       </div>
 
-      {/* Edge indicator — positioned at the bar convergence point */}
+      {/* Edge indicator */}
       {Math.abs(team1Value - team2Value) > 0.05 && (
-        <div
-          className="mt-1 font-mono text-[10px] sm:text-xs text-ink-faint"
-          style={{ textAlign: 'center', paddingLeft: isTeam1Advantage ? `${Math.max(team1Pct - 15, 0)}%` : undefined, paddingRight: !isTeam1Advantage ? `${Math.max(team2Pct - 15, 0)}%` : undefined }}
-        >
+        <div className="mt-1 text-center font-mono text-[10px] sm:text-xs text-ink-faint">
           {isTeam1Advantage ? team1Name : team2Name} +{Math.abs(team1Value - team2Value).toFixed(1)}
         </div>
       )}

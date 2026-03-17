@@ -14,7 +14,7 @@ export const TEAM_MAPPING: Record<number, TeamMapping> = {
   97: { espnId: 97, cbbdName: 'Louisville', ncaaName: 'Louisville' },
   26: { espnId: 26, cbbdName: 'UCLA', ncaaName: 'UCLA' },
   194: { espnId: 194, cbbdName: 'Ohio State', ncaaName: 'Ohio State' },
-  2628: { espnId: 2628, cbbdName: 'Texas Christian', ncaaName: 'TCU' },
+  2628: { espnId: 2628, cbbdName: 'TCU', ncaaName: 'TCU' },
   2116: { espnId: 2116, cbbdName: 'UCF', ncaaName: 'UCF' },
   58: { espnId: 58, cbbdName: 'South Florida', ncaaName: 'South Florida' },
   2460: { espnId: 2460, cbbdName: 'Northern Iowa', ncaaName: 'Northern Iowa' },
@@ -35,10 +35,10 @@ export const TEAM_MAPPING: Record<number, TeamMapping> = {
   328: { espnId: 328, cbbdName: 'Utah State', ncaaName: 'Utah State' },
   142: { espnId: 142, cbbdName: 'Missouri', ncaaName: 'Missouri' },
   2272: { espnId: 2272, cbbdName: 'High Point', ncaaName: 'High Point' },
-  62: { espnId: 62, cbbdName: 'Hawaii', ncaaName: "Hawai'i" },
+  62: { espnId: 62, cbbdName: "Hawai'i", ncaaName: "Hawai'i" },
   338: { espnId: 338, cbbdName: 'Kennesaw State', ncaaName: 'Kennesaw State' },
-  2511: { espnId: 2511, cbbdName: 'Queens', ncaaName: 'Queens (NC)' },
-  112358: { espnId: 112358, cbbdName: 'Long Island', ncaaName: 'Long Island' },
+  2511: { espnId: 2511, cbbdName: 'Queens University', ncaaName: 'Queens (NC)' },
+  112358: { espnId: 112358, cbbdName: 'Long Island University', ncaaName: 'Long Island' },
 
   // ── South Region ──
   57: { espnId: 57, cbbdName: 'Florida', ncaaName: 'Florida' },
@@ -54,7 +54,7 @@ export const TEAM_MAPPING: Record<number, TeamMapping> = {
   2670: { espnId: 2670, cbbdName: 'VCU', ncaaName: 'VCU' },
   2377: { espnId: 2377, cbbdName: 'McNeese', ncaaName: 'McNeese' },
   2653: { espnId: 2653, cbbdName: 'Troy', ncaaName: 'Troy' },
-  219: { espnId: 219, cbbdName: 'Penn', ncaaName: 'Pennsylvania' },
+  219: { espnId: 219, cbbdName: 'Pennsylvania', ncaaName: 'Pennsylvania' },
   70: { espnId: 70, cbbdName: 'Idaho', ncaaName: 'Idaho' },
 
   // ── Midwest Region ──
