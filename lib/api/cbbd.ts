@@ -91,6 +91,12 @@ export interface CbbdSeasonStats {
   defensiveRebounds: number;
   turnovers: number;
   assists: number;
+  // Opponent stats
+  opponentFieldGoalsMade: number;
+  opponentFieldGoalsAttempted: number;
+  opponentThreePointFieldGoalsMade: number;
+  opponentFreeThrowsAttempted: number;
+  opponentTurnovers: number;
   steals: number;
   blocks: number;
   personalFouls: number;
@@ -167,6 +173,11 @@ export async function getTeamSeasonStats(): Promise<CbbdSeasonStats[]> {
       personalFouls: 0,
       opponentPoints: t.oppPoints ?? 0,
       possessions: t.possessions ?? 0,
+      opponentFieldGoalsMade: t.oppFgMade ?? 0,
+      opponentFieldGoalsAttempted: t.oppFgAttempted ?? 0,
+      opponentThreePointFieldGoalsMade: t.oppFg3Made ?? 0,
+      opponentFreeThrowsAttempted: t.oppFtAttempted ?? 0,
+      opponentTurnovers: t.oppTurnovers ?? 0,
     });
   }
   return result;

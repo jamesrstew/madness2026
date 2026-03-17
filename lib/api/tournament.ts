@@ -217,13 +217,17 @@ export async function getAllTournamentStats(): Promise<Map<number, TeamStats>> {
           sos: srs?.sos ?? 0,
 
           // Four factors — derive from CBBD season stats if available
-          oEFG: deriveEfg(season) ?? 0,
-          dEFG: 0,
+          // eFG values are percentages (e.g. 55.0, not 0.55) to match ESPN's scale
+          oEFG: deriveEfgPct(season) ?? 0,
+          dEFG: deriveDefEfgPct(season) ?? 0,
           oTOV:
             season && games > 0
               ? round3(season.turnovers / games)
               : espn?.oTOV ?? 0,
-          dTOV: 0,
+          dTOV:
+            season && games > 0 && season.opponentTurnovers > 0
+              ? round3(season.opponentTurnovers / games)
+              : 0,
           oORB:
             season && games > 0
               ? round3(season.offensiveRebounds / games)
@@ -232,8 +236,8 @@ export async function getAllTournamentStats(): Promise<Map<number, TeamStats>> {
             season && games > 0
               ? round3(season.defensiveRebounds / games)
               : espn?.dORB ?? 0,
-          oFTR: deriveFtr(season) ?? 0,
-          dFTR: 0,
+          oFTR: deriveFtrPct(season) ?? 0,
+          dFTR: deriveDefFtrPct(season) ?? 0,
 
           // Basic per-game stats: prefer ESPN (real-time) > CBBD season > 0
           ppg:
@@ -308,23 +312,45 @@ function round3(n: number): number {
   return Math.round(n * 1000) / 1000;
 }
 
-/** eFG% = (FGM + 0.5 * 3PM) / FGA */
-function deriveEfg(
+/** Offensive eFG% = (FGM + 0.5 * 3PM) / FGA — as a percentage (e.g. 55.0) */
+function deriveEfgPct(
   season: { fieldGoalsMade: number; threePointFieldGoalsMade: number; fieldGoalsAttempted: number } | undefined,
 ): number | null {
   if (!season || season.fieldGoalsAttempted === 0) return null;
-  return round3(
-    (season.fieldGoalsMade + 0.5 * season.threePointFieldGoalsMade) /
-      season.fieldGoalsAttempted,
+  return round1(
+    ((season.fieldGoalsMade + 0.5 * season.threePointFieldGoalsMade) /
+      season.fieldGoalsAttempted) * 100,
   );
 }
 
-/** FTR = FTA / FGA */
-function deriveFtr(
+/** Defensive eFG% = (oppFGM + 0.5 * opp3PM) / oppFGA — as a percentage */
+function deriveDefEfgPct(
+  season: { opponentFieldGoalsMade?: number; opponentThreePointFieldGoalsMade?: number; opponentFieldGoalsAttempted?: number } | undefined,
+): number | null {
+  if (!season) return null;
+  const fga = season.opponentFieldGoalsAttempted ?? 0;
+  if (fga === 0) return null;
+  const fgm = season.opponentFieldGoalsMade ?? 0;
+  const fg3m = season.opponentThreePointFieldGoalsMade ?? 0;
+  return round1(((fgm + 0.5 * fg3m) / fga) * 100);
+}
+
+/** Offensive FT Rate = FTA / FGA — as a percentage */
+function deriveFtrPct(
   season: { freeThrowsAttempted: number; fieldGoalsAttempted: number } | undefined,
 ): number | null {
   if (!season || season.fieldGoalsAttempted === 0) return null;
-  return round3(season.freeThrowsAttempted / season.fieldGoalsAttempted);
+  return round1((season.freeThrowsAttempted / season.fieldGoalsAttempted) * 100);
+}
+
+/** Defensive FT Rate = oppFTA / oppFGA — as a percentage */
+function deriveDefFtrPct(
+  season: { opponentFreeThrowsAttempted?: number; opponentFieldGoalsAttempted?: number } | undefined,
+): number | null {
+  if (!season) return null;
+  const fga = season.opponentFieldGoalsAttempted ?? 0;
+  if (fga === 0) return null;
+  return round1(((season.opponentFreeThrowsAttempted ?? 0) / fga) * 100);
 }
 
 function fallbackStats(): TeamStats {
