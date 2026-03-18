@@ -11,6 +11,13 @@ export type Round =
   | 'FF'
   | 'CHAMPIONSHIP';
 
+export interface ActualResult {
+  winnerId: number; // ESPN team ID of real winner (0 if in_progress)
+  score: { team1Score: number; team2Score: number };
+  status: 'scheduled' | 'in_progress' | 'final';
+  statusDetail?: string; // e.g. "Final", "2nd Half 12:34"
+}
+
 export interface Matchup {
   id: string;
   round: Round;
@@ -18,6 +25,8 @@ export interface Matchup {
   team1?: Team;
   team2?: Team;
   winner?: Team;
+  userPick?: Team; // user's original pick (preserved when actual overrides winner)
+  actualResult?: ActualResult;
   winProb1?: number;
   winProb2?: number;
 }

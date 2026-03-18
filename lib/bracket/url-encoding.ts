@@ -113,14 +113,22 @@ export function encodeBracket(
   const bits: number[] = [];
 
   for (const id of MATCHUP_ORDER) {
-    const sel = selections.get(id);
     const matchup = matchups.get(id);
 
-    if (sel === undefined || !matchup) {
+    // For matchups with final actual results, encode the user's original pick
+    // (not the actual winner), so shared URLs represent user predictions only.
+    let pickId: number | undefined;
+    if (matchup?.actualResult?.status === 'final') {
+      pickId = matchup.userPick?.id;
+    } else {
+      pickId = selections.get(id);
+    }
+
+    if (pickId === undefined || !matchup) {
       bits.push(0, 0);
-    } else if (matchup.team1 && sel === matchup.team1.id) {
+    } else if (matchup.team1 && pickId === matchup.team1.id) {
       bits.push(0, 1); // team1
-    } else if (matchup.team2 && sel === matchup.team2.id) {
+    } else if (matchup.team2 && pickId === matchup.team2.id) {
       bits.push(1, 0); // team2
     } else {
       bits.push(0, 0);

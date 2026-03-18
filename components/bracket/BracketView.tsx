@@ -192,6 +192,8 @@ export default function BracketView() {
     (matchupId: string, teamId: number) => {
       const matchup = state.matchups.get(matchupId);
       if (!matchup) return;
+      // Lock guard: don't allow picks on games with actual results
+      if (matchup.actualResult?.status === 'final' || matchup.actualResult?.status === 'in_progress') return;
       const winner = matchup.team1?.id === teamId ? matchup.team1 : matchup.team2;
       if (!winner) return;
       dispatch({ type: 'SELECT_WINNER', matchupId, winner });

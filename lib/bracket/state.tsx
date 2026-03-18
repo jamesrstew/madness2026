@@ -8,7 +8,7 @@ import {
   useRef,
   type ReactNode,
 } from 'react';
-import type { Matchup, BracketState } from '@/lib/types/bracket';
+import type { Matchup, BracketState, ActualResult } from '@/lib/types/bracket';
 import type { Team } from '@/lib/types/team';
 import { getNextMatchupId, getNextMatchupSlot } from './structure';
 import { saveBracket, loadBracket } from './storage';
@@ -30,7 +30,8 @@ type BracketAction =
   | { type: 'AUTO_FILL'; predictions?: Map<string, { team1WinPct: number; team2WinPct: number }> }
   | { type: 'APPLY_URL_SELECTIONS'; urlSelections: Map<string, 'team1' | 'team2'> }
   | { type: 'SET_PREDICTIONS'; predictions: Map<string, { team1WinPct: number; team2WinPct: number }> }
-  | { type: 'REFRESH_TEAMS'; teams: Map<number, Team> };
+  | { type: 'REFRESH_TEAMS'; teams: Map<number, Team> }
+  | { type: 'APPLY_ACTUAL_RESULTS'; results: Map<string, ActualResult> };
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -100,6 +101,9 @@ function bracketReducer(state: BracketState, action: BracketAction): BracketStat
       const matchup = matchups.get(action.matchupId);
       if (!matchup) return state;
 
+      // Lock guard: don't allow user picks on games with final results
+      if (matchup.actualResult?.status === 'final') return state;
+
       const previousWinnerId = selections.get(action.matchupId);
 
       // If there was a previous winner that differs, cascade-clear them
@@ -129,10 +133,42 @@ function bracketReducer(state: BracketState, action: BracketAction): BracketStat
 
     case 'RESET_BRACKET': {
       const matchups = new Map<string, Matchup>();
+      const selections = new Map<string, number>();
+
+      // Preserve matchups with final actual results — don't clear real results
       for (const m of action.matchups) {
-        matchups.set(m.id, m);
+        const existing = state.matchups.get(m.id);
+        if (existing?.actualResult?.status === 'final') {
+          matchups.set(m.id, existing);
+          const winnerId = state.selections.get(m.id);
+          if (winnerId !== undefined) selections.set(m.id, winnerId);
+        } else {
+          matchups.set(m.id, m);
+        }
       }
-      return { matchups, selections: new Map(), completionPct: 0 };
+
+      // Re-advance actual winners through the bracket
+      const roundOrder = ['FIRST_FOUR', 'R64', 'R32', 'S16', 'E8', 'FF', 'CHAMPIONSHIP'] as const;
+      for (const round of roundOrder) {
+        for (const [id, matchup] of matchups) {
+          if (matchup.round !== round) continue;
+          if (!matchup.actualResult || matchup.actualResult.status !== 'final') continue;
+          if (!matchup.winner) continue;
+
+          const nextId = getNextMatchupId(id);
+          if (nextId) {
+            const next = matchups.get(nextId);
+            if (next) {
+              const slot = getNextMatchupSlot(id);
+              matchups.set(nextId, { ...next, [slot]: matchup.winner });
+            }
+          }
+        }
+      }
+
+      const newState: BracketState = { matchups, selections, completionPct: 0 };
+      newState.completionPct = computeCompletion(newState);
+      return newState;
     }
 
     case 'LOAD_BRACKET': {
@@ -158,6 +194,7 @@ function bracketReducer(state: BracketState, action: BracketAction): BracketStat
           if (matchup.round !== round) continue;
           if (!matchup.team1 || !matchup.team2) continue;
           if (selections.has(id)) continue; // already picked
+          if (matchup.actualResult?.status === 'final') continue; // locked by actual result
 
           // Look up prediction from the passed-in cache, then fall back to matchup fields
           const predKey = `${matchup.team1.id}-${matchup.team2.id}`;
@@ -193,7 +230,14 @@ function bracketReducer(state: BracketState, action: BracketAction): BracketStat
 
       // Reset matchups to base state: keep only teams from initial bracket,
       // clear all winners and all teams placed by advancing from earlier rounds.
+      // Preserve matchups with final actual results AND their selections.
       for (const [id, m] of matchups) {
+        if (m.actualResult?.status === 'final') {
+          // Bug 3 fix: restore selections for preserved final matchups
+          const winnerId = state.selections.get(id);
+          if (winnerId !== undefined) selections.set(id, winnerId);
+          continue;
+        }
         if (m.round === 'FIRST_FOUR' || m.round === 'R64') {
           matchups.set(id, { ...m, winner: undefined });
         } else {
@@ -202,8 +246,11 @@ function bracketReducer(state: BracketState, action: BracketAction): BracketStat
       }
 
       // Clear R64 slots that receive First Four winners (those team2s came from advancing)
+      // Bug 4 fix: only clear if the corresponding First Four game is NOT final
       for (let i = 0; i < 4; i++) {
         const ffId = `FIRST_FOUR-${i}`;
+        const ffMatchup = matchups.get(ffId);
+        if (ffMatchup?.actualResult?.status === 'final') continue; // don't clear slots for finished play-ins
         const targetR64Id = getNextMatchupId(ffId);
         if (targetR64Id) {
           const m = matchups.get(targetR64Id);
@@ -214,13 +261,29 @@ function bracketReducer(state: BracketState, action: BracketAction): BracketStat
         }
       }
 
-      // Apply URL picks round-by-round (same pattern as AUTO_FILL)
+      // Re-advance actual winners through the bracket (for preserved final matchups)
       const roundOrder = ['FIRST_FOUR', 'R64', 'R32', 'S16', 'E8', 'FF', 'CHAMPIONSHIP'] as const;
+      for (const round of roundOrder) {
+        for (const [id, matchup] of matchups) {
+          if (matchup.round !== round) continue;
+          if (matchup.actualResult?.status !== 'final' || !matchup.winner) continue;
+          const nextId = getNextMatchupId(id);
+          if (nextId) {
+            const next = matchups.get(nextId);
+            if (next) {
+              const slot = getNextMatchupSlot(id);
+              matchups.set(nextId, { ...next, [slot]: matchup.winner });
+            }
+          }
+        }
+      }
 
+      // Apply URL picks round-by-round (same pattern as AUTO_FILL)
       for (const round of roundOrder) {
         for (const [id, matchup] of matchups) {
           if (matchup.round !== round) continue;
           if (!matchup.team1 || !matchup.team2) continue;
+          if (matchup.actualResult?.status === 'final') continue; // locked by actual result
 
           const pick = action.urlSelections.get(id);
           if (!pick) continue;
@@ -300,6 +363,70 @@ function bracketReducer(state: BracketState, action: BracketAction): BracketStat
 
       if (!changed) return state;
       return { ...state, matchups };
+    }
+
+    case 'APPLY_ACTUAL_RESULTS': {
+      const matchups = new Map(state.matchups);
+      const selections = new Map(state.selections);
+
+      // Process round-by-round for correct cascade order
+      const roundOrder = ['FIRST_FOUR', 'R64', 'R32', 'S16', 'E8', 'FF', 'CHAMPIONSHIP'] as const;
+
+      for (const round of roundOrder) {
+        for (const [id, matchup] of matchups) {
+          if (matchup.round !== round) continue;
+
+          const result = action.results.get(id);
+          if (!result) continue;
+
+          if (result.status === 'final') {
+            // Determine the actual winner team object
+            const actualWinner =
+              matchup.team1?.id === result.winnerId
+                ? matchup.team1
+                : matchup.team2?.id === result.winnerId
+                  ? matchup.team2
+                  : undefined;
+            if (!actualWinner) continue;
+
+            // Preserve user's original pick (only set once, first time)
+            const userPick = matchup.userPick ?? matchup.winner;
+
+            const previousWinnerId = matchup.winner?.id;
+
+            // If actual winner differs from current winner, cascade-clear old winner
+            if (previousWinnerId !== undefined && previousWinnerId !== actualWinner.id) {
+              cascadeClear(matchups, selections, id, previousWinnerId);
+            }
+
+            // Set the actual winner + result
+            matchups.set(id, {
+              ...matchup,
+              winner: actualWinner,
+              userPick,
+              actualResult: result,
+            });
+            selections.set(id, actualWinner.id);
+
+            // Advance actual winner to next round
+            const nextId = getNextMatchupId(id);
+            if (nextId) {
+              const next = matchups.get(nextId);
+              if (next) {
+                const slot = getNextMatchupSlot(id);
+                matchups.set(nextId, { ...next, [slot]: actualWinner });
+              }
+            }
+          } else {
+            // In-progress or scheduled: store actualResult for display, no winner change
+            matchups.set(id, { ...matchup, actualResult: result });
+          }
+        }
+      }
+
+      const newState: BracketState = { matchups, selections, completionPct: 0 };
+      newState.completionPct = computeCompletion(newState);
+      return newState;
     }
 
     default:

@@ -1,6 +1,7 @@
 import type { Team } from '../types/team';
 import type { TeamStats, GameResult, GameLeader } from '../types/stats';
 import { cachedFetch, ESPN_TEAMS_TTL, ESPN_SCORES_TTL } from './cache';
+import { TOURNAMENT_TEAM_IDS } from '../tournament-seeds';
 
 const BASE =
   'https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball';
@@ -194,11 +195,129 @@ export async function getTeamSchedule(teamId: number): Promise<GameResult[]> {
   }, ESPN_TEAMS_TTL);
 }
 
-export async function getScoreboard(): Promise<unknown> {
-  return cachedFetch('espn:scoreboard', async () => {
-    const res = await fetch(`${BASE}/scoreboard`);
-    if (!res.ok)
-      throw new Error(`ESPN scoreboard request failed: ${res.status}`);
-    return res.json();
+// ---------------------------------------------------------------------------
+// Tournament scoreboard — parsed game results
+// ---------------------------------------------------------------------------
+
+export interface EspnGameResult {
+  team1Id: number;
+  team2Id: number;
+  team1Score: number;
+  team2Score: number;
+  winnerId: number; // 0 if not final
+  status: 'scheduled' | 'in_progress' | 'final';
+  statusDetail?: string;
+}
+
+const tournamentTeamIdSet = new Set(TOURNAMENT_TEAM_IDS);
+
+/**
+ * Parse ESPN scoreboard events into EspnGameResult[].
+ * Filters to games involving two tournament teams.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function parseScoreboardEvents(events: any[]): EspnGameResult[] {
+  const results: EspnGameResult[] = [];
+  for (const event of events) {
+    try {
+      const competition = event.competitions?.[0];
+      if (!competition) continue;
+      const competitors = competition.competitors;
+      if (!competitors || competitors.length < 2) continue;
+
+      const id1 = Number(competitors[0].id);
+      const id2 = Number(competitors[1].id);
+
+      // Only include games where both teams are in the tournament
+      if (!tournamentTeamIdSet.has(id1) || !tournamentTeamIdSet.has(id2)) continue;
+
+      const score1 = parseScore(competitors[0].score);
+      const score2 = parseScore(competitors[1].score);
+
+      const statusName: string = competition.status?.type?.name ?? '';
+      let status: EspnGameResult['status'] = 'scheduled';
+      if (statusName === 'STATUS_FINAL') status = 'final';
+      else if (statusName === 'STATUS_IN_PROGRESS') status = 'in_progress';
+
+      const statusDetail: string | undefined =
+        competition.status?.type?.shortDetail ?? competition.status?.type?.detail;
+
+      let winnerId = 0;
+      if (status === 'final') {
+        winnerId = score1 > score2 ? id1 : id2;
+      }
+
+      results.push({
+        team1Id: id1,
+        team2Id: id2,
+        team1Score: score1,
+        team2Score: score2,
+        winnerId,
+        status,
+        statusDetail,
+      });
+    } catch {
+      // Skip malformed events
+    }
+  }
+  return results;
+}
+
+/**
+ * Format a date as YYYYMMDD for the ESPN scoreboard `?dates=` param.
+ */
+function formatEspnDate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}${m}${day}`;
+}
+
+/**
+ * Fetch tournament game results from ESPN scoreboard.
+ * Fetches today's scoreboard plus recent tournament days to catch
+ * games that may have rotated off the default view.
+ */
+export async function getTournamentScoreboard(): Promise<EspnGameResult[]> {
+  return cachedFetch('espn:tournament-scoreboard', async () => {
+    // Fetch default scoreboard (today/yesterday)
+    const defaultRes = await fetch(`${BASE}/scoreboard`);
+    if (!defaultRes.ok) throw new Error(`ESPN scoreboard failed: ${defaultRes.status}`);
+    const defaultJson = await defaultRes.json();
+
+    const allEvents: unknown[] = [...(defaultJson.events ?? [])];
+    const seenEventIds = new Set<string>();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for (const e of allEvents) seenEventIds.add((e as any).id ?? '');
+
+    // Also fetch the past 5 days to catch games that rotated off today's view
+    const today = new Date();
+    const dateFetches: Promise<void>[] = [];
+    for (let daysAgo = 1; daysAgo <= 5; daysAgo++) {
+      const d = new Date(today);
+      d.setDate(d.getDate() - daysAgo);
+      const dateStr = formatEspnDate(d);
+      dateFetches.push(
+        fetch(`${BASE}/scoreboard?dates=${dateStr}`)
+          .then(async (res) => {
+            if (!res.ok) return;
+            const json = await res.json();
+            for (const event of json.events ?? []) {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const eid = (event as any).id ?? '';
+              if (!seenEventIds.has(eid)) {
+                seenEventIds.add(eid);
+                allEvents.push(event);
+              }
+            }
+          })
+          .catch(() => {
+            // Ignore individual date fetch failures
+          }),
+      );
+    }
+    await Promise.all(dateFetches);
+
+    return parseScoreboardEvents(allEvents);
   }, ESPN_SCORES_TTL);
 }

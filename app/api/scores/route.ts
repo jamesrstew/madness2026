@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
-import { getScoreboard } from '@/lib/api/espn';
+import { getTournamentScoreboard } from '@/lib/api/espn';
 
 export async function GET() {
   try {
-    const scoreboard = await getScoreboard();
-    return NextResponse.json(scoreboard);
+    const results = await getTournamentScoreboard();
+    return NextResponse.json(results);
   } catch (error) {
     console.error('Failed to fetch scores:', error);
     return NextResponse.json(

@@ -1,6 +1,7 @@
 import { BracketProvider } from '@/lib/bracket/state';
 import BracketView from '@/components/bracket/BracketView';
 import BracketInitializer from '@/components/bracket/BracketInitializer';
+import ActualResultsSync from '@/components/bracket/ActualResultsSync';
 import WelcomeBanner from '@/components/bracket/WelcomeBanner';
 
 export const metadata = {
@@ -21,6 +22,7 @@ export default function BracketPage() {
       <h1 className="mb-8 font-display text-3xl sm:text-4xl">Build Your Bracket</h1>
       <BracketProvider>
         <BracketInitializer />
+        <ActualResultsSync />
         <BracketView />
       </BracketProvider>
     </div>
